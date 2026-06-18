@@ -1,0 +1,32 @@
+{% extends 'converter/base.html' %}
+{% block title %}Job Logs — Operator Panel{% endblock %}
+{% block content %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h1 class="card-title" style="margin: 0; text-align: left;">Execution Logs</h1>
+        <a href="{% url 'converter:operator_job_detail' job.id %}" class="btn-secondary" style="margin: 0;">Back to Job</a>
+    </div>
+
+    <div style="margin-bottom: 20px; padding: 15px; border-radius: 8px; background: rgba(0,0,0,0.02); border: 1px solid var(--border);">
+        <p><strong>Job ID:</strong> {{ job.id }}</p>
+        <p><strong>Workflow:</strong> {{ job.workflow_code }}</p>
+    </div>
+
+    <div style="background: #1e1e1e; color: #d4d4d4; padding: 20px; border-radius: 12px; font-family: monospace; font-size: 0.9em; overflow-y: auto; max-height: 400px; line-height: 1.5;">
+        {% for log in logs %}
+            <div style="margin-bottom: 8px;">
+                <span style="color: #569cd6;">[{{ log.created_at }}]</span> 
+                <span style="font-weight: bold; 
+                    {% if log.log_level == 'error' or log.log_level == 'critical' %}color: #f44747;
+                    {% elif log.log_level == 'warning' %}color: #dcdcaa;
+                    {% else %}color: #4fc1ff;{% endif %}">
+                    {{ log.log_level|upper }}
+                </span>: 
+                {{ log.message }}
+            </div>
+        {% empty %}
+            <div style="color: #858585; text-align: center; padding: 20px;">No execution logs recorded yet.</div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

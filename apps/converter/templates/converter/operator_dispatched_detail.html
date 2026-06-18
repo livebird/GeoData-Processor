@@ -1,0 +1,55 @@
+{% extends 'converter/base.html' %}
+{% block title %}Location Export Detail — Operator Panel{% endblock %}
+{% block content %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h1 class="card-title" style="margin: 0; text-align: left;">Location Export Detail</h1>
+        <a href="{% url 'converter:dispatched_layers_list' %}" class="btn-secondary" style="margin: 0;">Back to Exports</a>
+    </div>
+
+    <div style="margin-bottom: 20px; padding: 20px; background: rgba(0,0,0,0.02); border-radius: 12px; border: 1px solid var(--border);">
+        <h2 style="margin-bottom: 15px;">{{ layer.payload_metadata.location_export_task_id|default:layer.target_layer_id|default:layer.id }}</h2>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 0.95em;">
+            <div><strong>Target System:</strong> {{ layer.target_system }}</div>
+            <div><strong>Status:</strong> {{ layer.status|upper }}</div>
+            <div><strong>Source File:</strong> {{ layer.payload_metadata.source_file_name|default:"N/A" }}</div>
+            <div><strong>Source Kind:</strong> {{ layer.payload_metadata.source_kind|default:"N/A" }}</div>
+            <div><strong>Input Format:</strong> {{ layer.payload_metadata.input_format|default:"N/A" }}</div>
+            <div><strong>Output Format:</strong> {{ layer.payload_metadata.output_format|default:"N/A" }}</div>
+            <div><strong>Conversion Task:</strong> {{ layer.payload_metadata.conversion_task_id|default:"N/A" }}</div>
+            <div><strong>Exported Count:</strong> {{ layer.payload_metadata.exported_count|default:"1" }}</div>
+            <div><strong>Dispatched At:</strong> {{ layer.dispatched_at }}</div>
+            <div><strong>Workflow Job:</strong>
+                {% if layer.job %}
+                    <a href="{% url 'converter:operator_job_detail' layer.job.id %}">{{ layer.job.workflow_code }}</a>
+                {% else %}
+                    N/A
+                {% endif %}
+            </div>
+            <div style="grid-column: 1 / -1;"><strong>Download URL:</strong>
+                {% if layer.payload_metadata.download_url %}
+                    <a href="{{ layer.payload_metadata.download_url }}">{{ layer.payload_metadata.download_url }}</a>
+                {% elif layer.target_endpoint %}
+                    <a href="{{ layer.target_endpoint }}">{{ layer.target_endpoint }}</a>
+                {% else %}
+                    N/A
+                {% endif %}
+            </div>
+        </div>
+
+        {% if layer.payload_metadata.geojson_geom %}
+            <div style="margin-top: 20px;">
+                <strong>Map Location (GeoJSON):</strong>
+                <pre style="background: white; padding: 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 0.85em; overflow: auto; max-height: 200px;">{{ layer.payload_metadata.geojson_geom }}</pre>
+            </div>
+        {% endif %}
+
+        {% if layer.job %}
+            <div style="margin-top: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 0.95em;">
+                <div><strong>Input File:</strong> {{ layer.job.input_file.original_file_name|default:"N/A" }}</div>
+                <div><strong>Output File:</strong> {{ layer.job.output_file.original_file_name|default:"N/A" }}</div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

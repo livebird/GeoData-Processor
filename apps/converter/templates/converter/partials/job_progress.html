@@ -1,0 +1,29 @@
+<div id="job-status-container" {% if job.status == 'pending' or job.status == 'processing' %}hx-get="{% url 'converter:operator_job_detail' job.id %}" hx-trigger="every 2s" hx-target="#job-status-container" hx-swap="outerHTML"{% endif %}>
+    <div style="margin: 20px 0; padding: 20px; background: rgba(255, 255, 255, 0.05); border-radius: 12px; border: 1px solid var(--border);">
+        <h3 style="margin-bottom: 10px;">Status: 
+            <span style="padding: 4px 10px; border-radius: 6px; font-size: 0.9em; font-weight: bold; background: 
+                {% if job.status == 'completed' %}#10b981
+                {% elif job.status == 'failed' %}#ef4444
+                {% elif job.status == 'processing' %}#3b82f6
+                {% else %}#f59e0b{% endif %}; color: white;">
+                {{ job.status|upper }}
+            </span>
+        </h3>
+        
+        <div style="margin: 15px 0;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                <span>Progress</span>
+                <span>{{ job.progress_percent }}%</span>
+            </div>
+            <div style="height: 10px; background: rgba(0,0,0,0.1); border-radius: 5px; overflow: hidden;">
+                <div style="height: 100%; width: {{ job.progress_percent }}%; background: var(--primary); transition: width 0.3s ease;"></div>
+            </div>
+        </div>
+        
+        {% if job.error_message %}
+            <div style="margin-top: 15px; padding: 10px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 8px; color: #ef4444;">
+                <strong>Error:</strong> {{ job.error_message }}
+            </div>
+        {% endif %}
+    </div>
+</div>

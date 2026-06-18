@@ -1,0 +1,27 @@
+{% extends 'converter/base.html' %}
+{% block title %}Manual CRS Assignment — Operator Panel{% endblock %}
+{% block content %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h1 class="card-title" style="margin: 0; text-align: left;">Manual CRS Assignment</h1>
+        <a href="{% url 'converter:operator_file_detail' file.id %}" class="btn-secondary" style="margin: 0;">Back to File</a>
+    </div>
+
+    <p style="margin-bottom: 20px; color: var(--text-muted);">Configure or override the Spatial Coordinate Reference System (CRS) manually using a standard EPSG integer code (e.g., 4326 for WGS 84, 3857 for Web Mercator).</p>
+
+    {% if error %}
+        <div class="result-message error" style="display: block; margin-bottom: 20px;">
+            {{ error }}
+        </div>
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-group">
+            <label for="epsg">EPSG Code</label>
+            <input type="text" name="epsg" id="epsg" placeholder="e.g., 4326" required>
+        </div>
+        <button type="submit" class="btn-primary">Assign Coordinate Reference System</button>
+    </form>
+</div>
+{% endblock %}

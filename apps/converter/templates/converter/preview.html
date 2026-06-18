@@ -1,0 +1,468 @@
+{% extends "converter/base.html" %}
+
+{% block title %}Preview Layer — GIS Batch Converter{% endblock %}
+
+{% block extra_styles %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<style>
+  .page-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.75rem;
+  }
+  .page-header h1 {
+    font-size: 1.55rem;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    margin: 0;
+    color: var(--text-main);
+  }
+  .panel {
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(10px);
+    border-radius: 16px;
+    padding: 1.5rem;
+    box-shadow: 0 18px 40px -22px rgba(2, 6, 23, 0.22);
+    border: 1px solid rgba(2, 6, 23, 0.08);
+    margin-bottom: 1.5rem;
+  }
+  .form-group {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    align-items: center;
+  }
+  #map {
+    height: 400px;
+    border-radius: 12px;
+    border: 1px solid rgba(2, 6, 23, 0.08);
+    background: #f8fafc;
+    margin-bottom: 1.5rem;
+    z-index: 1;
+  }
+  .info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  .info-box {
+    background: rgba(2, 6, 23, 0.02);
+    border: 1px solid rgba(2, 6, 23, 0.07);
+    border-radius: 12px;
+    padding: 1rem;
+  }
+  .info-box .k {
+    display: block;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .info-box .v {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--text-main);
+    word-break: break-word;
+  }
+  .quality-box {
+    padding: 1rem;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.96);
+    border: 1px solid rgba(2,6,23,0.06);
+  }
+  .quality-score {
+    font-size: 1.6rem;
+    font-weight: 800;
+  }
+  .quality-meter {
+    height: 10px;
+    background: rgba(2,6,23,0.06);
+    border-radius: 999px;
+    overflow: hidden;
+    margin-top: 6px;
+  }
+  .quality-meter > i {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, #10b981, #6366f1);
+  }
+  .quality-issues {
+    margin-top: 0.75rem;
+    display: grid;
+    gap: 6px;
+  }
+  .quality-issue {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0.5rem;
+    border-radius: 8px;
+    background: rgba(2,6,23,0.03);
+  }
+  .table-container {
+    overflow-x: auto;
+    border-radius: 12px;
+    border: 1px solid rgba(2, 6, 23, 0.08);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+  th, td {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid rgba(2, 6, 23, 0.05);
+  }
+  th {
+    background: rgba(2, 6, 23, 0.02);
+    font-weight: 600;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+  tbody tr:hover {
+    background: rgba(2, 6, 23, 0.01);
+  }
+  .pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1rem;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+  }
+  .pagination-controls {
+    display: flex;
+    gap: 0.5rem;
+  }
+  .btn-sm {
+    padding: 0.4rem 0.75rem;
+    border-radius: 6px;
+    background: rgba(2, 6, 23, 0.04);
+    border: 1px solid rgba(2, 6, 23, 0.1);
+    color: var(--text-main);
+    cursor: pointer;
+    font-weight: 500;
+  }
+  .btn-sm:hover:not(:disabled) {
+    background: rgba(2, 6, 23, 0.08);
+  }
+  .btn-sm:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .loading-state {
+    text-align: center;
+    padding: 3rem;
+    color: var(--text-muted);
+    display: none;
+  }
+  .loader-sm {
+    border: 2px solid rgba(2, 6, 23, 0.10);
+    border-top: 2px solid var(--primary);
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 1rem auto;
+  }
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  .error-msg {
+    color: var(--danger);
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    display: none;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Preview Layer</h1>
+    <p>Verify your conversion output on a map and attribute table before publishing/downloading.</p>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="form-group">
+    <input type="text" id="task-id-input" placeholder="Enter Conversion Task ID (UUID)" value="{{ task_id }}" style="flex: 1;">
+    <button id="load-preview-btn" class="btn-primary" style="width: auto;">Load Preview</button>
+  </div>
+
+  <div id="error-container" class="error-msg"></div>
+  <div id="loading-container" class="loading-state">
+    <div class="loader-sm"></div>
+    <p>Generating preview... (may take a moment for large files)</p>
+  </div>
+
+  <div id="preview-content" style="display: none;">
+    <div class="info-grid" id="info-grid"></div>
+    <div id="map"></div>
+
+    <div id="table-wrapper" style="display: none;">
+      <h3 style="margin-bottom: 0.75rem; font-size: 1.1rem;">Attribute Table (Sample)</h3>
+      <div class="table-container">
+        <table id="attr-table">
+          <thead><tr id="table-head"></tr></thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+      <div class="pagination">
+        <span id="page-info">Showing 0-0 of 0</span>
+        <div class="pagination-controls">
+          <button id="btn-prev" class="btn-sm" disabled>Previous</button>
+          <button id="btn-next" class="btn-sm" disabled>Next</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="workflow-actions" style="margin-top: 2rem; display: flex; gap: 1rem;">
+      <a href="#" id="download-link" class="btn-secondary" style="flex: 1; text-align: center;">Continue to Download</a>
+      <a href="{% url 'converter:index' %}" class="btn-sm" style="flex: 1; text-align: center; display: inline-flex; justify-content: center; align-items: center;">Abort & New Conversion</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+let map = null;
+let geojsonLayer = null;
+let allFeatures = [];
+let currentPage = 1;
+const PAGE_SIZE = 10;
+
+const btnLoad = document.getElementById('load-preview-btn');
+const inputTaskId = document.getElementById('task-id-input');
+const errorContainer = document.getElementById('error-container');
+const loadingContainer = document.getElementById('loading-container');
+const previewContent = document.getElementById('preview-content');
+const infoGrid = document.getElementById('info-grid');
+const tableWrapper = document.getElementById('table-wrapper');
+const tableHead = document.getElementById('table-head');
+const tableBody = document.getElementById('table-body');
+const pageInfo = document.getElementById('page-info');
+const btnPrev = document.getElementById('btn-prev');
+const btnNext = document.getElementById('btn-next');
+const downloadLink = document.getElementById('download-link');
+
+btnLoad.addEventListener('click', loadPreview);
+if (inputTaskId.value.trim()) {
+  loadPreview();
+}
+
+async function loadPreview() {
+  const taskId = inputTaskId.value.trim();
+  if (!taskId) return;
+
+  errorContainer.style.display = 'none';
+  previewContent.style.display = 'none';
+  loadingContainer.style.display = 'block';
+
+  try {
+    const res = await fetch(`/api/preview/${taskId}/`);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || 'Failed to load preview');
+    }
+    const data = await res.json();
+    renderPreview(data, taskId);
+  } catch (err) {
+    errorContainer.textContent = err.message;
+    errorContainer.style.display = 'block';
+  } finally {
+    loadingContainer.style.display = 'none';
+  }
+}
+
+function renderPreview(data, taskId) {
+  previewContent.style.display = 'block';
+  downloadLink.href = `/download/${taskId}/`;
+
+  let infoHTML = `
+    <div class="info-box">
+      <span class="k">File Type</span>
+      <span class="v" style="text-transform: capitalize;">${data.type}</span>
+    </div>
+    <div class="info-box">
+      <span class="k">File Name</span>
+      <span class="v">${data.file_name}</span>
+    </div>
+  `;
+
+  if (data.type === 'vector') {
+    infoHTML += `
+      <div class="info-box">
+        <span class="k">Total Features</span>
+        <span class="v">${(data.feature_count || 0).toLocaleString()}</span>
+      </div>
+    `;
+  } else {
+    infoHTML += `
+      <div class="info-box">
+        <span class="k">Dimensions</span>
+        <span class="v">${data.width || 0} x ${data.height || 0}</span>
+      </div>
+      <div class="info-box">
+        <span class="k">Bands</span>
+        <span class="v">${data.count || 0}</span>
+      </div>
+      <div class="info-box">
+        <span class="k">CRS</span>
+        <span class="v">${data.crs || 'Unknown'}</span>
+      </div>
+    `;
+  }
+
+  if (data.bounding_box) {
+    const bbox = data.bounding_box.map(n => Number(n).toFixed(4)).join(', ');
+    infoHTML += `
+      <div class="info-box" style="grid-column: 1 / -1;">
+        <span class="k">Bounding Box</span>
+        <span class="v">${bbox}</span>
+      </div>
+    `;
+  }
+
+  if (typeof data.quality_score !== 'undefined') {
+    const q = data.quality_score;
+    let issuesHTML = '';
+    if (data.quality_issues && data.quality_issues.length) {
+      data.quality_issues.forEach(it => {
+        const pct = data.feature_count ? Math.round((it.count / data.feature_count) * 100) : null;
+        issuesHTML += `<div class="quality-issue"><div>${it.message}</div><div>${it.count}${pct !== null ? ' (' + pct + '%)' : ''}</div></div>`;
+      });
+    } else {
+      issuesHTML = '<div class="quality-issue"><div>No issues detected</div><div>—</div></div>';
+    }
+
+    infoHTML += `
+      <div class="info-box" style="grid-column: 1 / -1;">
+        <div class="quality-box">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+            <div>
+              <div class="k">Data Quality</div>
+              <div class="quality-score">${q}/100</div>
+            </div>
+            <div style="min-width: 220px;">
+              <div class="quality-meter"><i style="width: ${q}%"></i></div>
+              <div style="font-size:0.8rem; color: var(--text-muted); margin-top:6px;">Higher is better</div>
+            </div>
+          </div>
+          <div class="quality-issues">${issuesHTML}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  infoGrid.innerHTML = infoHTML;
+
+  if (!map) {
+    map = L.map('map').setView([0, 0], 2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap'
+    }).addTo(map);
+  } else if (geojsonLayer) {
+    map.removeLayer(geojsonLayer);
+    geojsonLayer = null;
+  }
+
+  if (data.type === 'vector' && data.geojson) {
+    geojsonLayer = L.geoJSON(data.geojson, {
+      onEachFeature: function(feature, layer) {
+        if (feature.properties) {
+          let popup = '<div style="max-height: 200px; overflow-y: auto;"><b>Attributes:</b><br>';
+          for (let k in feature.properties) {
+            popup += `<b>${k}:</b> ${feature.properties[k]}<br>`;
+          }
+          popup += '</div>';
+          layer.bindPopup(popup);
+        }
+      }
+    }).addTo(map);
+
+    if (data.bounding_box) {
+      const [minx, miny, maxx, maxy] = data.bounding_box;
+      map.fitBounds([[miny, minx], [maxy, maxx]]);
+    }
+
+    tableWrapper.style.display = 'block';
+    allFeatures = data.geojson.features || [];
+    let theadHTML = `<th>Geometry Type</th>`;
+    (data.schema || []).forEach(col => {
+      theadHTML += `<th>${col.name} <span style="font-size: 0.7em; color: #94a3b8;">${col.type}</span></th>`;
+    });
+    tableHead.innerHTML = theadHTML;
+    currentPage = 1;
+    renderTablePage();
+  } else if (data.type === 'raster') {
+    tableWrapper.style.display = 'none';
+    if (data.bounding_box) {
+      const [minx, miny, maxx, maxy] = data.bounding_box;
+      map.fitBounds([[miny, minx], [maxy, maxx]]);
+      L.rectangle([[miny, minx], [maxy, maxx]], { color: '#ff7800', weight: 2 }).addTo(map);
+    }
+  }
+}
+
+function renderTablePage() {
+  if (!allFeatures.length) {
+    tableBody.innerHTML = '<tr><td colspan="100%">No attributes found</td></tr>';
+    pageInfo.textContent = 'Showing 0-0 of 0';
+    btnPrev.disabled = true;
+    btnNext.disabled = true;
+    return;
+  }
+
+  const totalPages = Math.ceil(allFeatures.length / PAGE_SIZE);
+  const startIdx = (currentPage - 1) * PAGE_SIZE;
+  const endIdx = Math.min(startIdx + PAGE_SIZE, allFeatures.length);
+  const pageFeatures = allFeatures.slice(startIdx, endIdx);
+
+  let tbodyHTML = '';
+  pageFeatures.forEach(feat => {
+    const geomType = feat.geometry ? feat.geometry.type : 'Null';
+    tbodyHTML += `<tr><td>${geomType}</td>`;
+    const schemaNames = Array.from(tableHead.children).slice(1).map(th => th.childNodes[0].textContent.trim());
+    schemaNames.forEach(col => {
+      const val = feat.properties[col];
+      tbodyHTML += `<td>${val !== null && val !== undefined ? String(val).substring(0, 50) + (String(val).length > 50 ? '...' : '') : '<i>null</i>'}</td>`;
+    });
+    tbodyHTML += `</tr>`;
+  });
+
+  tableBody.innerHTML = tbodyHTML;
+  pageInfo.textContent = `Showing ${startIdx + 1}-${endIdx} of ${allFeatures.length}`;
+  btnPrev.disabled = currentPage === 1;
+  btnNext.disabled = currentPage === totalPages;
+}
+
+btnPrev.addEventListener('click', () => {
+  if (currentPage > 1) {
+    currentPage--;
+    renderTablePage();
+  }
+});
+btnNext.addEventListener('click', () => {
+  const totalPages = Math.ceil(allFeatures.length / PAGE_SIZE);
+  if (currentPage < totalPages) {
+    currentPage++;
+    renderTablePage();
+  }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,171 @@
+{% extends 'converter/base.html' %}
+{% load static %}
+
+{% block title %}Job Preview - Operator Panel{% endblock %}
+
+{% block extra_styles %}
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<style>
+  .preview-shell {
+    display: grid;
+    gap: 16px;
+  }
+  .preview-topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+  .preview-title h1 {
+    margin: 0;
+    font-size: 1.35rem;
+    color: var(--text-main);
+  }
+  .preview-title p {
+    margin: 4px 0 0 0;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+  .preview-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .preview-grid {
+    display: grid;
+    grid-template-columns: minmax(320px, 1.5fr) minmax(320px, 1fr);
+    gap: 16px;
+  }
+  .preview-panel {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .preview-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .preview-panel-header strong {
+    color: var(--text-main);
+  }
+  .preview-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .preview-metric {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+  }
+  .preview-metric span {
+    display: block;
+    color: var(--text-muted);
+    font-size: 0.76rem;
+    margin-bottom: 4px;
+  }
+  .preview-metric strong {
+    display: block;
+    color: var(--text-main);
+    font-size: 0.95rem;
+    overflow-wrap: anywhere;
+  }
+  #job-preview-map {
+    height: 520px;
+    min-height: 360px;
+  }
+  .preview-table-wrap {
+    overflow: auto;
+    max-height: 520px;
+  }
+  .preview-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.84rem;
+  }
+  .preview-table th,
+  .preview-table td {
+    border-bottom: 1px solid var(--border);
+    padding: 9px 10px;
+    text-align: left;
+    vertical-align: top;
+    max-width: 240px;
+    overflow-wrap: anywhere;
+  }
+  .preview-table th {
+    position: sticky;
+    top: 0;
+    background: #f8fafc;
+    color: var(--text-muted);
+    font-weight: 700;
+    z-index: 1;
+  }
+  .preview-pager {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border-top: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 0.85rem;
+  }
+  .preview-pager-buttons {
+    display: flex;
+    gap: 8px;
+  }
+  .preview-state {
+    padding: 18px;
+    color: var(--text-muted);
+  }
+  .preview-error {
+    padding: 12px 14px;
+    background: #fff1f2;
+    border: 1px solid #fecdd3;
+    color: #9f1239;
+    border-radius: 8px;
+  }
+  .preview-success {
+    padding: 12px 14px;
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    color: #065f46;
+    border-radius: 8px;
+  }
+  @media (max-width: 980px) {
+    .preview-grid,
+    .preview-metrics {
+      grid-template-columns: 1fr;
+    }
+    .preview-topbar {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+    #job-preview-map {
+      height: 420px;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div
+  id="job-preview-root"
+  data-job-id="{{ job.id }}"
+  data-output-url="{% url 'converter:output_download' job.id %}"
+  data-jobs-url="{% url 'converter:job_list' %}"
+></div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="{% static 'converter/js/job-preview.bundle.js' %}"></script>
+{% endblock %}

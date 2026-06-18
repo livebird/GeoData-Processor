@@ -1,0 +1,247 @@
+{% extends "converter/base.html" %}
+
+{% block title %}Admin Panel — GIS Batch Converter{% endblock %}
+
+{% block extra_styles %}
+<style>
+  .tabs {
+    display: flex;
+    gap: 8px;
+    margin: 1rem 0 1.25rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0.6rem 0.9rem;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.9);
+    color: var(--text-muted);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: all 0.15s ease;
+  }
+  .tab:hover { background: var(--surface-hover); color: var(--text-main); }
+  .tab.active {
+    color: var(--text-main);
+    border-color: rgba(99,102,241,0.35);
+    box-shadow: 0 0 0 3px var(--primary-glow);
+  }
+
+  .admin-search {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin: 1.25rem 0 1.5rem;
+  }
+  .admin-search input[type="text"] { flex: 1; }
+  .admin-search .btn-secondary { width: auto; }
+
+  .dashboard {
+    display: grid;
+    gap: 14px;
+    margin: 1.25rem 0 1.5rem;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  }
+  .stat {
+    border: 1px solid rgba(2, 6, 23, 0.08);
+    background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(248,250,252,0.96));
+    border-radius: 14px;
+    padding: 1rem;
+  }
+  .stat-label { font-size: 0.82rem; color: var(--text-muted); font-weight: 600; }
+  .stat-value { margin-top: 0.35rem; font-size: 1.4rem; font-weight: 800; letter-spacing: -0.4px; }
+  .stat-subtext { margin-top: 0.25rem; font-size: 0.82rem; color: var(--text-muted); }
+  .dashboard-users {
+    margin-top: 0.75rem;
+    display: grid;
+    gap: 8px;
+  }
+  .dashboard-user {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+    padding: 0.65rem 0.8rem;
+    border-radius: 12px;
+    background: rgba(2, 6, 23, 0.03);
+    font-size: 0.9rem;
+  }
+  .dashboard-user strong { display: block; }
+  .dashboard-user span { color: var(--text-muted); font-size: 0.8rem; }
+
+  .list { display: grid; gap: 10px; margin-top: 1rem; }
+  .row {
+    border: 1px solid rgba(2, 6, 23, 0.08);
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 14px;
+    padding: 1rem 1rem;
+  }
+  .row-top {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+  .row-title { font-weight: 700; letter-spacing: -0.2px; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    border: 1px solid rgba(2,6,23,0.10);
+    background: rgba(2,6,23,0.03);
+    color: var(--text-muted);
+  }
+  .pill.success { background: rgba(16,185,129,0.10); border-color: rgba(16,185,129,0.25); color: #0b7a57; }
+  .pill.error { background: rgba(239,68,68,0.10); border-color: rgba(239,68,68,0.25); color: #b91c1c; }
+  .pill.started { background: rgba(99,102,241,0.10); border-color: rgba(99,102,241,0.25); color: #3730a3; }
+
+  .row-meta {
+    margin-top: 8px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    display: grid;
+    gap: 4px;
+  }
+
+  .actions { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .btn-mini {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.35rem 0.65rem;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.85);
+    text-decoration: none;
+    color: var(--text-main);
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .btn-mini:hover { background: var(--surface-hover); }
+  .btn-danger { border-color: rgba(239,68,68,0.30); color: #b91c1c; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-title">Admin Panel</div>
+  <div class="card-subtitle">CRUD for conversion jobs and search logs</div>
+
+  {% if usage_dashboard %}
+    <div class="dashboard">
+      <div class="stat">
+        <div class="stat-label">Total uploads</div>
+        <div class="stat-value">{{ usage_dashboard.total_uploads }}</div>
+        <div class="stat-subtext">Upload events recorded</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Failed jobs</div>
+        <div class="stat-value">{{ usage_dashboard.failed_jobs }}</div>
+        <div class="stat-subtext">Conversion jobs in error state</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Storage usage</div>
+        <div class="stat-value">{{ usage_dashboard.storage_display }}</div>
+        <div class="stat-subtext">Geo file storage consumed</div>
+      </div>
+    </div>
+
+    <div class="row" style="margin-bottom: 1rem;">
+      <div class="row-top">
+        <div class="row-title">Top users</div>
+        <span class="pill">Top 5</span>
+      </div>
+      <div class="dashboard-users">
+        {% for user in usage_dashboard.top_users %}
+          <div class="dashboard-user">
+            <div>
+              <strong>{{ user.label }}</strong>
+              <span>{{ user.uploads }} uploads · {{ user.storage|filesizeformat }}</span>
+            </div>
+          </div>
+        {% empty %}
+          <div class="dashboard-user"><strong>No user uploads yet</strong></div>
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
+
+  <form class="admin-search" method="get" action="{% url 'converter:admin_panel' %}">
+    <input type="hidden" name="tab" value="{{ tab }}">
+    <input type="text" name="q" value="{{ q }}" placeholder="Search by task id, status, format, CRS, IP, user agent, query..." autocomplete="off">
+    <button class="btn-secondary" type="submit">Search</button>
+  </form>
+
+  <div class="tabs">
+    <a class="tab {% if tab == 'jobs' %}active{% endif %}" href="{% url 'converter:admin_panel' %}?tab=jobs{% if q %}&q={{ q|urlencode }}{% endif %}">Conversion Jobs</a>
+    <a class="tab {% if tab == 'logs' %}active{% endif %}" href="{% url 'converter:admin_panel' %}?tab=logs{% if q %}&q={{ q|urlencode }}{% endif %}">Search Logs</a>
+    {% if tab == 'jobs' %}
+      <a class="tab" href="{% url 'converter:admin_job_create' %}" style="border-color: var(--secondary); color: var(--secondary);">+ Create Job</a>
+    {% else %}
+      <a class="tab" href="{% url 'converter:admin_log_create' %}" style="border-color: var(--secondary); color: var(--secondary);">+ Create Log</a>
+    {% endif %}
+    <a class="tab" href="/admin/" target="_blank" rel="noopener">Django Admin</a>
+  </div>
+
+  {% if tab == 'jobs' %}
+    <div class="list">
+      {% for job in jobs %}
+        <div class="row">
+          <div class="row-top">
+            <div class="row-title mono">{{ job.task_id }}</div>
+            <div class="actions">
+              <span class="pill {{ job.status }}">{{ job.get_status_display }}</span>
+              <a class="btn-mini" href="{% url 'converter:admin_job_detail' job.task_id %}">View</a>
+              <a class="btn-mini" href="{% url 'converter:admin_job_edit' job.task_id %}">Edit</a>
+              <a class="btn-mini btn-danger" href="{% url 'converter:admin_job_delete' job.task_id %}">Delete</a>
+            </div>
+          </div>
+          <div class="row-meta">
+            <div><strong>Created:</strong> {{ job.created_at }}{% if job.finished_at %} &nbsp; <strong>Finished:</strong> {{ job.finished_at }}{% endif %}</div>
+            <div><strong>Formats:</strong> {{ job.input_format|default:"—" }} → {{ job.output_format|default:"—" }}{% if job.crs %} &nbsp; <strong>CRS:</strong> {{ job.crs }}{% endif %}</div>
+            <div><strong>Files:</strong> uploaded {{ job.upload_files_count }} · output {{ job.output_files_count }}{% if job.download_url %} &nbsp; <strong>Download:</strong> <a href="{{ job.download_url }}">{{ job.download_url }}</a>{% endif %}</div>
+            {% if job.error_message %}<div><strong>Error:</strong> {{ job.error_message }}</div>{% endif %}
+          </div>
+        </div>
+      {% empty %}
+        <div class="row">No conversion jobs found.</div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="list">
+      {% for log in logs %}
+        <div class="row">
+          <div class="row-top">
+            <div class="row-title">{{ log.query }}</div>
+            <div class="actions">
+              <span class="pill">{{ log.results_count }} results</span>
+              <a class="btn-mini" href="{% url 'converter:admin_log_detail' log.id %}">View</a>
+              <a class="btn-mini" href="{% url 'converter:admin_log_edit' log.id %}">Edit</a>
+              <a class="btn-mini btn-danger" href="{% url 'converter:admin_log_delete' log.id %}">Delete</a>
+            </div>
+          </div>
+          <div class="row-meta">
+            <div><strong>Searched:</strong> {{ log.searched_at }}</div>
+            <div><strong>IP:</strong> {{ log.ip_address|default:"—" }}</div>
+          </div>
+        </div>
+      {% empty %}
+        <div class="row">No search logs found.</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
+

@@ -1,0 +1,860 @@
+{% extends "converter/base.html" %}
+
+{% block title %}Database Viewer — GIS Tool{% endblock %}
+
+{% block extra_styles %}
+<style>
+  /* Hide sidebar only on database viewer page */
+  .sidebar {
+    display: none !important;
+  }
+
+  /* Make main content full width on database viewer page */
+  .main-content {
+    margin-left: 0 !important;
+    width: 100% !important;
+  }
+
+  .db-page {
+    width: 100%;
+    max-width: 1400px;
+    animation: pageIn 0.4s ease;
+  }
+
+  .db-header {
+    margin-bottom: 2rem;
+  }
+
+  .db-header h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #818cf8, #c084fc);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -0.5px;
+    margin-bottom: 0.4rem;
+  }
+
+  .db-header p {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+  }
+
+  /* Summary stats row */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+
+  .stat-card {
+    background: rgba(255,255,255,0.92);
+    border: 1px solid rgba(99,102,241,0.15);
+    border-radius: 14px;
+    padding: 1.1rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    box-shadow: 0 4px 16px -8px rgba(2,6,23,0.14);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px -10px rgba(99,102,241,0.25);
+  }
+
+  .stat-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+  }
+
+  .stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #6366f1, #c084fc);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    line-height: 1;
+  }
+
+  .stat-table-name {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  /* Table section */
+  .table-section {
+    margin-bottom: 2.5rem;
+    background: rgba(255,255,255,0.95);
+    border-radius: 16px;
+    border: 1px solid rgba(2,6,23,0.08);
+    box-shadow: 0 10px 30px -16px rgba(2,6,23,0.18);
+    overflow: hidden;
+  }
+
+  .table-section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 1.1rem 1.5rem;
+    background: linear-gradient(135deg, rgba(99,102,241,0.07), rgba(192,132,252,0.05));
+    border-bottom: 1px solid rgba(2,6,23,0.07);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .table-section-header:hover {
+    background: linear-gradient(135deg, rgba(99,102,241,0.12), rgba(192,132,252,0.08));
+  }
+
+  .table-section-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #6366f1, #a78bfa);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .table-section-icon svg {
+    width: 18px;
+    height: 18px;
+    stroke: white;
+    stroke-width: 2;
+  }
+
+  .table-section-title {
+    flex: 1;
+  }
+
+  .table-section-title h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-main);
+    font-family: 'Inter', monospace;
+  }
+
+  .table-section-title span {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .badge-count {
+    background: rgba(99,102,241,0.12);
+    color: #6366f1;
+    border: 1px solid rgba(99,102,241,0.2);
+  }
+
+  .badge-empty {
+    background: rgba(100,116,139,0.1);
+    color: var(--text-muted);
+    border: 1px solid rgba(100,116,139,0.15);
+  }
+
+  .chevron {
+    width: 20px;
+    height: 20px;
+    stroke: var(--text-muted);
+    transition: transform 0.3s ease;
+    flex-shrink: 0;
+  }
+
+  .table-section.collapsed .chevron {
+    transform: rotate(-90deg);
+  }
+
+  /* Scrollable table wrapper */
+  .table-wrapper {
+    overflow-x: auto;
+    max-height: 480px;
+    overflow-y: auto;
+  }
+
+  .table-section.collapsed .table-wrapper {
+    display: none;
+  }
+
+  table.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.83rem;
+    min-width: 600px;
+  }
+
+  table.data-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+
+  table.data-table thead th {
+    background: #f8fafc;
+    border-bottom: 2px solid #e2e8f0;
+    padding: 0.65rem 1rem;
+    text-align: left;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #64748b;
+    white-space: nowrap;
+  }
+
+  table.data-table tbody tr {
+    border-bottom: 1px solid #f1f5f9;
+    transition: background 0.15s;
+  }
+
+  table.data-table tbody tr:last-child {
+    border-bottom: none;
+  }
+
+  table.data-table tbody tr:hover {
+    background: rgba(99,102,241,0.04);
+  }
+
+  table.data-table tbody td {
+    padding: 0.6rem 1rem;
+    color: var(--text-main);
+    max-width: 280px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  table.data-table tbody td:first-child {
+    font-weight: 600;
+    color: #6366f1;
+    width: 50px;
+  }
+
+  .cell-json {
+    font-family: 'Courier New', monospace;
+    font-size: 0.75rem;
+    color: #0f766e;
+    background: #f0fdf4;
+    padding: 2px 6px;
+    border-radius: 4px;
+    display: inline-block;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+
+  .cell-bool-yes {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: #10b981;
+    font-weight: 600;
+    font-size: 0.8rem;
+  }
+
+  .cell-bool-no {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: #94a3b8;
+    font-size: 0.8rem;
+  }
+
+  .cell-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+  }
+
+  .status-completed { background: rgba(16,185,129,0.12); color: #10b981; border: 1px solid rgba(16,185,129,0.2); }
+  .status-pending   { background: rgba(245,158,11,0.12); color: #f59e0b; border: 1px solid rgba(245,158,11,0.2); }
+  .status-failed    { background: rgba(239,68,68,0.12); color: #ef4444; border: 1px solid rgba(239,68,68,0.2); }
+  .status-queued    { background: rgba(99,102,241,0.12); color: #6366f1; border: 1px solid rgba(99,102,241,0.2); }
+  .status-info      { background: rgba(6,182,212,0.12); color: #0891b2; border: 1px solid rgba(6,182,212,0.2); }
+  .status-warn      { background: rgba(245,158,11,0.12); color: #d97706; border: 1px solid rgba(245,158,11,0.2); }
+  .status-error     { background: rgba(239,68,68,0.12); color: #dc2626; border: 1px solid rgba(239,68,68,0.2); }
+
+  .empty-state {
+    padding: 2.5rem;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+
+  .empty-state svg {
+    width: 36px;
+    height: 36px;
+    stroke: #cbd5e1;
+    margin-bottom: 0.75rem;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .refresh-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0.55rem 1.1rem;
+    background: linear-gradient(135deg, #6366f1, #818cf8);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.2s;
+    box-shadow: 0 4px 10px -4px rgba(99,102,241,0.4);
+    font-family: 'Inter', sans-serif;
+  }
+
+  .refresh-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 18px -6px rgba(99,102,241,0.5);
+  }
+
+  .refresh-btn svg {
+    width: 16px;
+    height: 16px;
+    stroke: white;
+  }
+
+  .db-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  /* Scrollbar styling */
+  .table-wrapper::-webkit-scrollbar { width: 6px; height: 6px; }
+  .table-wrapper::-webkit-scrollbar-track { background: #f8fafc; }
+  .table-wrapper::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+  .table-wrapper::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+  @media (max-width: 768px) {
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .db-page { max-width: 100%; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="db-page">
+  <div class="db-header">
+    <h1>📊 Database Viewer</h1>
+    <p>Live data from the <strong>kavanconverter</strong> SQL Server database — all 9 populated tables.</p>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="db-toolbar">
+    <div style="font-size:0.85rem;color:var(--text-muted);">
+      Total records: <strong style="color:var(--text-main);">{{ total_records }}</strong>
+      across <strong style="color:var(--text-main);">{{ table_count }}</strong> tables
+    </div>
+    <a href="{% url 'converter:database_viewer' %}" class="refresh-btn">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <polyline points="23 4 23 10 17 10"></polyline>
+        <polyline points="1 20 1 14 7 14"></polyline>
+        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+      </svg>
+      Refresh
+    </a>
+  </div>
+
+  <!-- Stats row -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <span class="stat-label">Workflows</span>
+      <span class="stat-value">{{ workflows|length }}</span>
+      <span class="stat-table-name">workflows</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Geo Files</span>
+      <span class="stat-value">{{ geo_files|length }}</span>
+      <span class="stat-table-name">geo_files</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">File Layers</span>
+      <span class="stat-value">{{ geo_layers|length }}</span>
+      <span class="stat-table-name">geo_file_layers</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Jobs</span>
+      <span class="stat-value">{{ jobs|length }}</span>
+      <span class="stat-table-name">geo_processing_jobs</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Job Logs</span>
+      <span class="stat-value">{{ job_logs|length }}</span>
+      <span class="stat-table-name">geo_processing_job_logs</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Audit Logs</span>
+      <span class="stat-value">{{ audit_logs|length }}</span>
+      <span class="stat-table-name">audit_log</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Roles</span>
+      <span class="stat-value">{{ roles|length }}</span>
+      <span class="stat-table-name">rbac_roles</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Permissions</span>
+      <span class="stat-value">{{ permissions|length }}</span>
+      <span class="stat-table-name">rbac_permissions</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Credentials</span>
+      <span class="stat-value">{{ credentials|length }}</span>
+      <span class="stat-table-name">destination_credentials</span>
+    </div>
+  </div>
+
+  <!-- ── TABLE 1: workflows ── -->
+  <div class="table-section" id="sec-workflows">
+    <div class="table-section-header" onclick="toggleSection('sec-workflows')">
+      <div class="table-section-icon">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      </div>
+      <div class="table-section-title">
+        <h3>workflows</h3>
+        <span>Defines available file conversion processes</span>
+      </div>
+      {% if workflows %}
+        <span class="badge badge-count">{{ workflows|length }} row{{ workflows|length|pluralize }}</span>
+      {% else %}
+        <span class="badge badge-empty">empty</span>
+      {% endif %}
+      <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="table-wrapper">
+      {% if workflows %}
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>id</th><th>code</th><th>name</th><th>description</th>
+            <th>destination_type</th><th>parameters_schema</th>
+            <th>preview_enabled</th><th>is_active</th><th>created_at</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for wf in workflows %}
+          <tr>
+            <td>{{ wf.id }}</td>
+            <td><code style="font-size:0.78rem;color:#6366f1;">{{ wf.code }}</code></td>
+            <td>{{ wf.name }}</td>
+            <td>{{ wf.description|default:"—" }}</td>
+            <td><span class="badge badge-count">{{ wf.destination_type }}</span></td>
+            <td>{% if wf.parameters_schema %}<span class="cell-json" title="{{ wf.parameters_schema }}">{{ wf.parameters_schema }}</span>{% else %}—{% endif %}</td>
+            <td>{% if wf.preview_enabled %}<span class="cell-bool-yes">✓ Yes</span>{% else %}<span class="cell-bool-no">✗ No</span>{% endif %}</td>
+            <td>{% if wf.is_active %}<span class="cell-bool-yes">✓ Active</span>{% else %}<span class="cell-bool-no">✗ Off</span>{% endif %}</td>
+            <td style="color:var(--text-muted);font-size:0.75rem;">{{ wf.created_at|date:"Y-m-d H:i" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty-state">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+        No records found in <strong>workflows</strong>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ── TABLE 2: geo_files ── -->
+  <div class="table-section" id="sec-geofiles">
+    <div class="table-section-header" onclick="toggleSection('sec-geofiles')">
+      <div class="table-section-icon" style="background:linear-gradient(135deg,#10b981,#34d399);">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      </div>
+      <div class="table-section-title">
+        <h3>geo_files</h3>
+        <span>Uploaded geographic files metadata</span>
+      </div>
+      {% if geo_files %}<span class="badge badge-count">{{ geo_files|length }} row{{ geo_files|length|pluralize }}</span>
+      {% else %}<span class="badge badge-empty">empty</span>{% endif %}
+      <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="table-wrapper">
+      {% if geo_files %}
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>id</th><th>org_id</th><th>original_file_name</th><th>source_type</th>
+            <th>file_type</th><th>mime_type</th><th>storage_backend</th>
+            <th>storage_path</th><th>size_bytes</th><th>uploaded_by</th><th>created_at</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in geo_files %}
+          <tr>
+            <td>{{ f.id }}</td>
+            <td>{{ f.org_id }}</td>
+            <td><strong>{{ f.original_file_name }}</strong></td>
+            <td>{{ f.source_type }}</td>
+            <td><span class="badge badge-count">{{ f.file_type }}</span></td>
+            <td style="color:var(--text-muted);font-size:0.75rem;">{{ f.mime_type|default:"—" }}</td>
+            <td>{{ f.storage_backend }}</td>
+            <td style="font-size:0.75rem;color:#0891b2;max-width:200px;overflow:hidden;text-overflow:ellipsis;">{{ f.storage_path }}</td>
+            <td>{% if f.size_bytes %}{{ f.size_bytes|filesizeformat }}{% else %}—{% endif %}</td>
+            <td>{{ f.uploaded_by|default:"—" }}</td>
+            <td style="color:var(--text-muted);font-size:0.75rem;">{{ f.created_at|date:"Y-m-d H:i" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty-state">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        No records found in <strong>geo_files</strong>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ── TABLE 3: geo_file_layers ── -->
+  <div class="table-section" id="sec-geolayers">
+    <div class="table-section-header" onclick="toggleSection('sec-geolayers')">
+      <div class="table-section-icon" style="background:linear-gradient(135deg,#0891b2,#22d3ee);">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21 3 6"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>
+      </div>
+      <div class="table-section-title">
+        <h3>geo_file_layers</h3>
+        <span>Layer metadata extracted from geo files</span>
+      </div>
+      {% if geo_layers %}<span class="badge badge-count">{{ geo_layers|length }} row{{ geo_layers|length|pluralize }}</span>
+      {% else %}<span class="badge badge-empty">empty</span>{% endif %}
+      <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="table-wrapper">
+      {% if geo_layers %}
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>id</th><th>file_id</th><th>layer_name</th><th>geometry_type</th>
+            <th>has_z</th><th>has_m</th><th>source_crs_epsg</th>
+            <th>feature_count</th><th>bbox</th><th>fields</th>
+            <th>encoding</th><th>created_at</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for l in geo_layers %}
+          <tr>
+            <td>{{ l.id }}</td>
+            <td><span style="color:#6366f1;font-weight:600;">{{ l.file_id }}</span></td>
+            <td><strong>{{ l.layer_name }}</strong></td>
+            <td><span class="badge badge-count">{{ l.geometry_type }}</span></td>
+            <td>{% if l.has_z %}<span class="cell-bool-yes">✓</span>{% else %}<span class="cell-bool-no">✗</span>{% endif %}</td>
+            <td>{% if l.has_m %}<span class="cell-bool-yes">✓</span>{% else %}<span class="cell-bool-no">✗</span>{% endif %}</td>
+            <td>{{ l.source_crs_epsg|default:"—" }}</td>
+            <td>{{ l.feature_count|default:"—" }}</td>
+            <td>{% if l.bbox %}<span class="cell-json" title="{{ l.bbox }}">{{ l.bbox }}</span>{% else %}—{% endif %}</td>
+            <td>{% if l.fields %}<span class="cell-json" title="{{ l.fields }}">{{ l.fields }}</span>{% else %}—{% endif %}</td>
+            <td>{{ l.encoding|default:"—" }}</td>
+            <td style="color:var(--text-muted);font-size:0.75rem;">{{ l.created_at|date:"Y-m-d H:i" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty-state">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21 3 6"/></svg>
+        No records found in <strong>geo_file_layers</strong>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ── TABLE 4: geo_processing_jobs ── -->
+  <div class="table-section" id="sec-jobs">
+    <div class="table-section-header" onclick="toggleSection('sec-jobs')">
+      <div class="table-section-icon" style="background:linear-gradient(135deg,#f59e0b,#fbbf24);">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
+      <div class="table-section-title">
+        <h3>geo_processing_jobs</h3>
+        <span>File conversion job queue</span>
+      </div>
+      {% if jobs %}<span class="badge badge-count">{{ jobs|length }} row{{ jobs|length|pluralize }}</span>
+      {% else %}<span class="badge badge-empty">empty</span>{% endif %}
+      <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="table-wrapper">
+      {% if jobs %}
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>id</th><th>org_id</th><th>workflow_code</th><th>status</th>
+            <th>priority</th><th>input_file_id</th><th>parameters</th>
+            <th>progress%</th><th>requested_by</th><th>started_at</th><th>completed_at</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for j in jobs %}
+          <tr>
+            <td>{{ j.id }}</td>
+            <td>{{ j.org_id }}</td>
+            <td><code style="font-size:0.78rem;color:#6366f1;">{{ j.workflow_code }}</code></td>
+            <td>
+              {% if j.status == 'completed' %}<span class="cell-status status-completed">{{ j.status }}</span>
+              {% elif j.status == 'failed' %}<span class="cell-status status-failed">{{ j.status }}</span>
+              {% elif j.status == 'queued' %}<span class="cell-status status-queued">{{ j.status }}</span>
+              {% elif j.status == 'pending' %}<span class="cell-status status-pending">{{ j.status }}</span>
+              {% else %}<span class="cell-status status-info">{{ j.status }}</span>{% endif %}
+            </td>
+            <td>{{ j.priority|default:"—" }}</td>
+            <td>{{ j.input_file_id|default:"—" }}</td>
+            <td>{% if j.parameters %}<span class="cell-json" title="{{ j.parameters }}">{{ j.parameters }}</span>{% else %}—{% endif %}</td>
+            <td>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <div style="width:60px;height:6px;background:#e2e8f0;border-radius:999px;overflow:hidden;">
+                  <div style="width:{{ j.progress_percent }}%;height:100%;background:linear-gradient(90deg,#6366f1,#a78bfa);border-radius:999px;"></div>
+                </div>
+                <span style="font-size:0.75rem;font-weight:600;color:#6366f1;">{{ j.progress_percent }}%</span>
+              </div>
+            </td>
+            <td>{{ j.requested_by|default:"—" }}</td>
+            <td style="color:var(--text-muted);font-size:0.75rem;">{{ j.started_at|date:"Y-m-d H:i"|default:"—" }}</td>
+            <td style="color:var(--text-muted);font-size:0.75rem;">{{ j.completed_at|date:"Y-m-d H:i"|default:"—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty-state">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        No records found in <strong>geo_processing_jobs</strong>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ── TABLE 5: geo_processing_job_logs ── -->
+  <div class="table-section" id="sec-joblogs">
+    <div class="table-section-header" onclick="toggleSection('sec-joblogs')">
+      <div class="table-section-icon" style="background:linear-gradient(135deg,#8b5cf6,#c084fc);">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      </div>
+      <div class="table-section-title">
+        <h3>geo_processing_job_logs</h3>
+        <span>Execution log entries for processing jobs</span>
+      </div>
+      {% if job_logs %}<span class="badge badge-count">{{ job_logs|length }} row{{ job_logs|length|pluralize }}</span>
+      {% else %}<span class="badge badge-empty">empty</span>{% endif %}
+      <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="table-wrapper">
+      {% if job_logs %}
+      <table class="data-table">
+        <thead>
+          <tr><th>id</th><th>job_id</th><th>log_level</th><th>message</th><th>details</th><th>created_at</th></tr>
+        </thead>
+        <tbody>
+          {% for lg in job_logs %}
+          <tr>
+            <td>{{ lg.id }}</td>
+            <td><span style="color:#6366f1;font-weight:600;">{{ lg.job_id }}</span></td>
+            <td>
+              {% if lg.log_level == 'info' %}<span class="cell-status status-info">{{ lg.log_level }}</span>
+              {% elif lg.log_level == 'warning' or lg.log_level == 'warn' %}<span class="cell-status status-warn">{{ lg.log_level }}</span>
+              {% elif lg.log_level == 'error' %}<span class="cell-status status-error">{{ lg.log_level }}</span>
+              {% else %}<span class="cell-status status-info">{{ lg.log_level }}</span>{% endif %}
+            </td>
+            <td>{{ lg.message }}</td>
+            <td>{% if lg.details %}<span class="cell-json" title="{{ lg.details }}">{{ lg.details }}</span>{% else %}—{% endif %}</td>
+            <td style="color:var(--text-muted);font-size:0.75rem;">{{ lg.created_at|date:"Y-m-d H:i" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty-state">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+        No records found in <strong>geo_processing_job_logs</strong>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ── TABLE 6: audit_log ── -->
+  <div class="table-section" id="sec-audit">
+    <div class="table-section-header" onclick="toggleSection('sec-audit')">
+      <div class="table-section-icon" style="background:linear-gradient(135deg,#ef4444,#f87171);">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+      <div class="table-section-title">
+        <h3>audit_log</h3>
+        <span>Security & compliance action trail</span>
+      </div>
+      {% if audit_logs %}<span class="badge badge-count">{{ audit_logs|length }} row{{ audit_logs|length|pluralize }}</span>
+      {% else %}<span class="badge badge-empty">empty</span>{% endif %}
+      <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="table-wrapper">
+      {% if audit_logs %}
+      <table class="data-table">
+        <thead>
+          <tr><th>id</th><th>org_id</th><th>actor_type</th><th>actor_id</th><th>action</th><th>resource_type</th><th>resource_id</th><th>details</th><th>ip_address</th><th>created_at</th></tr>
+        </thead>
+        <tbody>
+          {% for a in audit_logs %}
+          <tr>
+            <td>{{ a.id }}</td>
+            <td>{{ a.org_id }}</td>
+            <td>{{ a.actor_type }}</td>
+            <td>{{ a.actor_id }}</td>
+            <td><span class="badge badge-count">{{ a.action }}</span></td>
+            <td>{{ a.resource_type }}</td>
+            <td>{{ a.resource_id }}</td>
+            <td>{% if a.details %}<span class="cell-json" title="{{ a.details }}">{{ a.details }}</span>{% else %}—{% endif %}</td>
+            <td style="font-size:0.75rem;color:#0891b2;">{{ a.ip_address|default:"—" }}</td>
+            <td style="color:var(--text-muted);font-size:0.75rem;">{{ a.created_at|date:"Y-m-d H:i" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty-state">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        No records found in <strong>audit_log</strong>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ── TABLE 7: rbac_roles ── -->
+  <div class="table-section" id="sec-roles">
+    <div class="table-section-header" onclick="toggleSection('sec-roles')">
+      <div class="table-section-icon" style="background:linear-gradient(135deg,#059669,#34d399);">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      </div>
+      <div class="table-section-title">
+        <h3>rbac_roles</h3>
+        <span>Role-based access control roles</span>
+      </div>
+      {% if roles %}<span class="badge badge-count">{{ roles|length }} row{{ roles|length|pluralize }}</span>
+      {% else %}<span class="badge badge-empty">empty</span>{% endif %}
+      <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="table-wrapper">
+      {% if roles %}
+      <table class="data-table">
+        <thead><tr><th>id</th><th>code</th><th>name</th></tr></thead>
+        <tbody>
+          {% for r in roles %}
+          <tr>
+            <td>{{ r.id }}</td>
+            <td><code style="font-size:0.78rem;color:#6366f1;">{{ r.code }}</code></td>
+            <td>{{ r.name }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="empty-state">No records in <strong>rbac_roles</strong></div>{% endif %}
+    </div>
+  </div>
+
+  <!-- ── TABLE 8: rbac_permissions ── -->
+  <div class="table-section" id="sec-perms">
+    <div class="table-section-header" onclick="toggleSection('sec-perms')">
+      <div class="table-section-icon" style="background:linear-gradient(135deg,#d97706,#fbbf24);">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </div>
+      <div class="table-section-title">
+        <h3>rbac_permissions</h3>
+        <span>Individual permission codes for roles</span>
+      </div>
+      {% if permissions %}<span class="badge badge-count">{{ permissions|length }} row{{ permissions|length|pluralize }}</span>
+      {% else %}<span class="badge badge-empty">empty</span>{% endif %}
+      <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="table-wrapper">
+      {% if permissions %}
+      <table class="data-table">
+        <thead><tr><th>id</th><th>code</th></tr></thead>
+        <tbody>
+          {% for p in permissions %}
+          <tr>
+            <td>{{ p.id }}</td>
+            <td><code style="font-size:0.78rem;color:#6366f1;">{{ p.code }}</code></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="empty-state">No records in <strong>rbac_permissions</strong></div>{% endif %}
+    </div>
+  </div>
+
+  <!-- ── TABLE 9: destination_credentials ── -->
+  <div class="table-section" id="sec-creds">
+    <div class="table-section-header" onclick="toggleSection('sec-creds')">
+      <div class="table-section-icon" style="background:linear-gradient(135deg,#0f172a,#334155);">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+      </div>
+      <div class="table-section-title">
+        <h3>destination_credentials</h3>
+        <span>Encrypted credentials for external services</span>
+      </div>
+      {% if credentials %}<span class="badge badge-count">{{ credentials|length }} row{{ credentials|length|pluralize }}</span>
+      {% else %}<span class="badge badge-empty">empty</span>{% endif %}
+      <svg class="chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="table-wrapper">
+      {% if credentials %}
+      <table class="data-table">
+        <thead>
+          <tr><th>id</th><th>org_id</th><th>name</th><th>target_type</th><th>encrypted_secret</th><th>metadata</th><th>is_active</th><th>created_at</th></tr>
+        </thead>
+        <tbody>
+          {% for c in credentials %}
+          <tr>
+            <td>{{ c.id }}</td>
+            <td>{{ c.org_id }}</td>
+            <td><strong>{{ c.name }}</strong></td>
+            <td><span class="badge badge-count">{{ c.target_type }}</span></td>
+            <td><span style="font-family:monospace;font-size:0.75rem;color:#94a3b8;">••••••••</span></td>
+            <td>{% if c.metadata %}<span class="cell-json" title="{{ c.metadata }}">{{ c.metadata }}</span>{% else %}—{% endif %}</td>
+            <td>{% if c.is_active %}<span class="cell-bool-yes">✓ Active</span>{% else %}<span class="cell-bool-no">✗ Off</span>{% endif %}</td>
+            <td style="color:var(--text-muted);font-size:0.75rem;">{{ c.created_at|date:"Y-m-d H:i" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="empty-state">No records in <strong>destination_credentials</strong></div>{% endif %}
+    </div>
+  </div>
+
+</div>
+
+<script>
+  function toggleSection(id) {
+    const el = document.getElementById(id);
+    el.classList.toggle('collapsed');
+  }
+</script>
+{% endblock %}

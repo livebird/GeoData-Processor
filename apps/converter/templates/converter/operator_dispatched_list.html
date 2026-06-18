@@ -1,0 +1,83 @@
+{% extends 'converter/base.html' %}
+{% block title %}Location Exports — Operator Panel{% endblock %}
+{% block content %}
+<div class="card">
+    <h1 class="card-title">Location Exports</h1>
+    <p class="card-subtitle">Converted datasets placed at map locations and dispatched after Location Export.</p>
+
+    <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+            <thead>
+                <tr style="border-bottom: 2px solid var(--border); font-weight: bold; color: var(--text-muted);">
+                    <th style="padding: 10px;">Export ID</th>
+                    <th style="padding: 10px;">Source File</th>
+                    <th style="padding: 10px;">Conversion</th>
+                    <th style="padding: 10px;">Workflow Job</th>
+                    <th style="padding: 10px;">Status</th>
+                    <th style="padding: 10px;">Dispatched At</th>
+                    <th style="padding: 10px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for layer in layers %}
+                    <tr style="border-bottom: 1px solid var(--border);">
+                        <td style="padding: 10px; font-weight: 500;">
+                            <a href="{% url 'converter:dispatched_layer_detail' layer.id %}">
+                                {{ layer.payload_metadata.location_export_task_id|default:layer.target_layer_id|default:layer.id }}
+                            </a>
+                        </td>
+                        <td style="padding: 10px;">
+                            {% if layer.payload_metadata.source_file_name %}
+                                {{ layer.payload_metadata.source_file_name }}
+                            {% elif layer.job and layer.job.input_file %}
+                                {{ layer.job.input_file.original_file_name|default:"N/A" }}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </td>
+                        <td style="padding: 10px; font-size: 0.9em;">
+                            {% if layer.payload_metadata.input_format %}
+                                {{ layer.payload_metadata.input_format }} → {{ layer.payload_metadata.output_format }}
+                            {% elif layer.job %}
+                                {{ layer.job.parameters.input_format|default:"—" }} → {{ layer.job.parameters.output_format|default:"—" }}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </td>
+                        <td style="padding: 10px;">
+                            {% if layer.job %}
+                                <a href="{% url 'converter:operator_job_detail' layer.job.id %}">{{ layer.job.workflow_code }}</a>
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </td>
+                        <td style="padding: 10px;" id="status-cell-{{ layer.id }}">
+                            <span style="padding: 2px 8px; border-radius: 4px; font-size: 0.85em; font-weight: bold; color: white; background:
+                                {% if layer.status == 'confirmed' or layer.status == 'success' %}#10b981
+                                {% elif layer.status == 'failed' %}#ef4444
+                                {% elif layer.status == 'dispatched' %}#3b82f6
+                                {% else %}#f59e0b{% endif %};">
+                                {{ layer.status|upper }}
+                            </span>
+                        </td>
+                        <td style="padding: 10px; font-size: 0.85em; color: var(--text-muted);">{{ layer.dispatched_at }}</td>
+                        <td style="padding: 10px;">
+                            {% if layer.payload_metadata.download_url %}
+                                <a href="{{ layer.payload_metadata.download_url }}" class="btn-secondary" style="font-size: 0.8em; padding: 4px 8px; margin: 0;">Download</a>
+                            {% elif layer.target_endpoint %}
+                                <a href="{{ layer.target_endpoint }}" class="btn-secondary" style="font-size: 0.8em; padding: 4px 8px; margin: 0;">Download</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="7" style="padding: 20px; text-align: center; color: var(--text-muted);">
+                            No location exports yet. Convert a file, then use <strong>Send Export</strong> on the Location Export page.
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

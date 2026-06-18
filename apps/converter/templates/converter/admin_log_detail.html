@@ -1,0 +1,44 @@
+{% extends "converter/base.html" %}
+
+{% block title %}Search Log #{{ log.id }} — Admin{% endblock %}
+
+{% block extra_styles %}
+<style>
+  .meta { display: grid; gap: 8px; margin-top: 1rem; color: var(--text-muted); }
+  .actions { display: flex; gap: 10px; justify-content: center; margin-top: 1.25rem; flex-wrap: wrap; }
+  .btn-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.7rem 1.25rem;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    text-decoration: none;
+    font-weight: 700;
+    color: var(--text-main);
+    background: rgba(255,255,255,0.85);
+  }
+  .btn-link:hover { background: var(--surface-hover); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-title">Search Log</div>
+  <div class="card-subtitle">#{{ log.id }}</div>
+
+  <div class="meta">
+    <div><strong>Query:</strong> {{ log.query }}</div>
+    <div><strong>Searched at:</strong> {{ log.searched_at }}</div>
+    <div><strong>Results count:</strong> {{ log.results_count }}</div>
+    <div><strong>IP:</strong> {{ log.ip_address|default:"—" }}</div>
+    <div><strong>User agent:</strong> {{ log.user_agent|default:"—" }}</div>
+  </div>
+
+  <div class="actions">
+    <a class="btn-secondary" href="{% url 'converter:admin_log_edit' log.id %}">Edit</a>
+    <a class="btn-link" href="{% url 'converter:admin_panel' %}?tab=logs">Back</a>
+  </div>
+</div>
+{% endblock %}
+

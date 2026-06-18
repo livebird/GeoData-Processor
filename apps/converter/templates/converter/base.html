@@ -1,0 +1,2862 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>{% block title %}GIS Batch Converter{% endblock %}</title>
+
+    <meta name="description" content="GIS Batch Converter — convert and search geospatial files instantly.">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+
+    <style>
+
+        /* ── Design tokens ────────────────────────────── */
+
+        :root {
+
+            --primary: #0d9488;
+
+            --primary-hover: #0f766e;
+
+            --primary-light: #14b8a6;
+
+            --primary-glow: rgba(13, 148, 136, 0.28);
+
+            --secondary: #6366f1;
+
+            --accent: #38bdf8;
+
+            --bg-color: #f4f7fb;
+
+            --bg-sidebar: linear-gradient(180deg, #0c1222 0%, #111827 48%, #0f172a 100%);
+
+            --surface: #ffffff;
+
+            --surface-hover: rgba(255, 255, 255, 0.08);
+
+            --text-main: #0f172a;
+
+            --text-muted: #64748b;
+
+            --text-on-dark: #e2e8f0;
+
+            --text-muted-on-dark: #94a3b8;
+
+            --border: rgba(15, 23, 42, 0.08);
+
+            --border-on-dark: rgba(255, 255, 255, 0.08);
+
+            --danger: #ef4444;
+
+            --sidebar-width: 272px;
+
+            --sidebar-collapsed-width: 70px;
+
+            --header-height: 64px;
+
+            --radius-sm: 10px;
+
+            --radius-md: 14px;
+
+            --radius-lg: 20px;
+
+            --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px -8px rgba(15, 23, 42, 0.12);
+
+            --shadow-card: 0 4px 6px -2px rgba(15, 23, 42, 0.05), 0 20px 48px -16px rgba(15, 23, 42, 0.14);
+
+            --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+        }
+
+
+
+        * {
+
+            box-sizing: border-box;
+
+            margin: 0;
+
+            padding: 0;
+
+        }
+
+
+
+        html {
+
+            scroll-behavior: smooth;
+
+        }
+
+
+
+        body {
+
+            font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+
+            background-color: var(--bg-color);
+
+            color: var(--text-main);
+
+            min-height: 100vh;
+
+            display: flex;
+
+            -webkit-font-smoothing: antialiased;
+
+            -moz-osx-font-smoothing: grayscale;
+
+            background-image:
+
+                radial-gradient(ellipse 80% 50% at 10% -10%, rgba(13, 148, 136, 0.12) 0%, transparent 55%),
+
+                radial-gradient(ellipse 60% 40% at 95% 5%, rgba(99, 102, 241, 0.08) 0%, transparent 50%),
+
+                radial-gradient(ellipse 50% 30% at 50% 100%, rgba(56, 189, 248, 0.06) 0%, transparent 55%),
+
+                linear-gradient(180deg, #f8fafc 0%, var(--bg-color) 100%);
+
+        }
+
+
+
+        ::selection {
+
+            background: rgba(13, 148, 136, 0.2);
+
+            color: var(--text-main);
+
+        }
+
+
+
+        /* ── Sidebar ─────────────────────────────────── */
+
+        .sidebar {
+
+            position: fixed;
+
+            top: 0;
+
+            left: 0;
+
+            width: var(--sidebar-width);
+
+            height: 100vh;
+
+            background: var(--bg-sidebar);
+
+            border-right: 1px solid var(--border-on-dark);
+
+            display: flex;
+
+            flex-direction: column;
+
+            z-index: 100;
+
+            transition: transform 0.35s var(--ease-out), width 0.35s var(--ease-out);
+
+            box-shadow: 4px 0 24px -8px rgba(0, 0, 0, 0.25);
+
+        }
+
+
+
+        .sidebar-brand {
+
+            padding: 1.5rem 1.25rem 1.25rem;
+
+            border-bottom: 1px solid var(--border-on-dark);
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: space-between;
+
+        }
+
+
+
+        .sidebar-brand-inner {
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 12px;
+
+        }
+
+
+
+        .sidebar-toggle-btn {
+
+            background: rgba(255, 255, 255, 0.08);
+
+            border: 1px solid rgba(255, 255, 255, 0.1);
+
+            border-radius: 8px;
+
+            padding: 0.5rem;
+
+            cursor: pointer;
+
+            color: var(--text-muted-on-dark);
+
+            transition: all 0.2s ease;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+        }
+
+
+
+        .sidebar-toggle-btn:hover {
+
+            background: rgba(255, 255, 255, 0.12);
+
+            color: var(--text-on-dark);
+
+        }
+
+
+
+        .sidebar-toggle-btn svg {
+
+            width: 20px;
+
+            height: 20px;
+
+            stroke-width: 2;
+
+        }
+
+
+
+        .sidebar.collapsed {
+
+            width: var(--sidebar-collapsed-width);
+
+        }
+
+        .sidebar.collapsed .sidebar-brand {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 1rem 0.5rem;
+            gap: 0.75rem;
+        }
+
+        .sidebar.collapsed .sidebar-brand-inner {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .sidebar.collapsed .sidebar-brand-inner h2,
+        .sidebar.collapsed .sidebar-brand-inner span {
+            display: block;
+            text-align: center;
+            font-size: 0.65rem;
+            line-height: 1.2;
+        }
+
+        .sidebar.collapsed .sidebar-brand-inner h2 {
+            font-size: 0.75rem;
+            margin-bottom: 0.1rem;
+        }
+
+        .sidebar.collapsed .sidebar-brand-inner span {
+            font-size: 0.55rem;
+        }
+
+        .sidebar.collapsed .sidebar-toggle-btn {
+            display: flex;
+        }
+
+        .sidebar.collapsed .sidebar-nav {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            padding: 0.65rem 0.4rem;
+            gap: 0.2rem;
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+
+        .sidebar.collapsed .sidebar-nav a {
+            justify-content: center;
+            padding: 0.45rem;
+            font-size: 0;
+            gap: 0;
+        }
+
+        .sidebar.collapsed .sidebar-nav-label {
+            display: none;
+        }
+
+        .sidebar.collapsed .sidebar-footer {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 0.5rem;
+            border-top: 1px solid var(--border-on-dark);
+        }
+
+        .sidebar.collapsed .sidebar-footer-text {
+            display: none;
+        }
+
+        .sidebar-expand-btn {
+            display: none;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 0.45rem;
+            cursor: pointer;
+            color: var(--text-muted-on-dark);
+            align-items: center;
+            justify-content: center;
+        }
+
+        .sidebar-expand-btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+            color: var(--text-on-dark);
+        }
+
+        .sidebar-expand-btn svg {
+            width: 20px;
+            height: 20px;
+            stroke-width: 2;
+        }
+
+        .sidebar.collapsed .sidebar-expand-btn {
+            display: flex;
+        }
+
+        .sidebar.collapsed:hover {
+            width: var(--sidebar-width);
+            transition-delay: 0.1s;
+        }
+
+        .sidebar.collapsed:not(:hover) {
+            transition-delay: 0.3s;
+        }
+
+        .sidebar.collapsed:hover .sidebar-brand {
+            flex-direction: row;
+            justify-content: space-between;
+            padding: 1.5rem 1.25rem 1.25rem;
+        }
+
+        .sidebar.collapsed:hover .sidebar-brand-inner {
+            flex-direction: row;
+            gap: 12px;
+        }
+
+        .sidebar.collapsed:hover .sidebar-brand-inner h2,
+        .sidebar.collapsed:hover .sidebar-brand-inner span {
+            display: block;
+        }
+
+        .sidebar.collapsed:hover .sidebar-nav {
+            display: flex;
+            flex-direction: column;
+            padding: 1rem 0.85rem;
+            gap: 3px;
+        }
+
+        .sidebar.collapsed:hover .sidebar-nav a {
+            justify-content: flex-start;
+            padding: 0.7rem 0.85rem;
+            font-size: 0.9rem;
+            gap: 11px;
+        }
+
+        .sidebar.collapsed:hover .sidebar-nav-label {
+            display: block;
+        }
+
+        .sidebar.collapsed:hover .sidebar-footer {
+            padding: 1rem 1.25rem;
+            flex-direction: row;
+            justify-content: center;
+        }
+
+        .sidebar.collapsed:hover .sidebar-footer-text {
+            display: block;
+        }
+
+        .sidebar.collapsed:hover .sidebar-expand-btn {
+            display: none;
+        }
+
+
+
+        .sidebar.collapsed + .main-content {
+
+            margin-left: var(--sidebar-collapsed-width);
+
+            width: calc(100% - var(--sidebar-collapsed-width));
+
+        }
+
+
+
+        .sidebar.collapsed + .main-content + .admin-fab {
+
+            right: 18px;
+
+        }
+
+
+
+        .sidebar-logo {
+
+            width: 42px;
+
+            height: 42px;
+
+            border-radius: 12px;
+
+            background: linear-gradient(135deg, var(--primary-light) 0%, var(--secondary) 100%);
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            box-shadow: 0 8px 20px -6px rgba(13, 148, 136, 0.55);
+
+            flex-shrink: 0;
+
+        }
+
+
+
+        .sidebar-logo svg {
+
+            width: 22px;
+
+            height: 22px;
+
+            color: white;
+
+        }
+
+
+
+        .sidebar-brand h2 {
+
+            font-size: 1.15rem;
+
+            font-weight: 800;
+
+            color: #fff;
+
+            letter-spacing: -0.4px;
+
+            line-height: 1.2;
+
+        }
+
+
+
+        .sidebar-brand span {
+
+            display: block;
+
+            font-size: 0.7rem;
+
+            color: var(--text-muted-on-dark);
+
+            margin-top: 2px;
+
+            letter-spacing: 0.04em;
+
+            font-weight: 500;
+
+        }
+
+
+
+        .sidebar-nav {
+
+            padding: 1rem 0.85rem;
+
+            display: flex;
+
+            flex-direction: column;
+
+            gap: 3px;
+
+            flex: 1;
+
+            overflow-y: auto;
+
+        }
+
+
+
+        .sidebar-nav-label {
+
+            font-size: 0.65rem;
+
+            font-weight: 700;
+
+            text-transform: uppercase;
+
+            letter-spacing: 0.12em;
+
+            color: var(--text-muted-on-dark);
+
+            padding: 0.5rem 0.75rem 0.35rem;
+
+            opacity: 0.7;
+
+        }
+
+
+
+        .sidebar-nav a {
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 11px;
+
+            padding: 0.7rem 0.85rem;
+
+            border-radius: var(--radius-sm);
+
+            color: var(--text-muted-on-dark);
+
+            text-decoration: none;
+
+            font-weight: 500;
+
+            font-size: 0.9rem;
+
+            transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+
+            position: relative;
+
+        }
+
+
+
+        .sidebar-nav a:hover {
+
+            background: var(--surface-hover);
+
+            color: var(--text-on-dark);
+
+        }
+
+
+
+        .sidebar-nav a.active {
+
+            background: linear-gradient(135deg, rgba(13, 148, 136, 0.22) 0%, rgba(99, 102, 241, 0.14) 100%);
+
+            color: #fff;
+
+            box-shadow: inset 0 0 0 1px rgba(20, 184, 166, 0.35);
+
+        }
+
+
+
+        .sidebar-nav a.active .nav-icon-wrap {
+
+            background: rgba(20, 184, 166, 0.25);
+
+            color: #5eead4;
+
+        }
+
+
+
+        .nav-icon-wrap {
+
+            width: 34px;
+
+            height: 34px;
+
+            border-radius: 9px;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            background: rgba(255, 255, 255, 0.04);
+
+            transition: background 0.2s ease, color 0.2s ease;
+
+            flex-shrink: 0;
+
+        }
+
+
+
+        .sidebar-nav a svg {
+
+            width: 18px;
+
+            height: 18px;
+
+            stroke-width: 2;
+
+            flex-shrink: 0;
+
+        }
+
+
+
+        .sidebar-footer {
+
+            margin-top: auto;
+
+            padding: 1rem 1.25rem;
+
+            border-top: 1px solid var(--border-on-dark);
+
+            font-size: 0.72rem;
+
+            color: var(--text-muted-on-dark);
+
+            text-align: center;
+
+            opacity: 0.85;
+
+        }
+
+
+
+        /* ── Mobile hamburger ────────────────────────── */
+
+        .mobile-toggle {
+
+            display: none;
+
+            position: fixed;
+
+            top: 1rem;
+
+            left: 1rem;
+
+            z-index: 200;
+
+            background: var(--surface);
+
+            border: 1px solid var(--border);
+
+            border-radius: var(--radius-sm);
+
+            padding: 0.6rem;
+
+            cursor: pointer;
+
+            color: var(--text-main);
+
+            box-shadow: var(--shadow-soft);
+
+        }
+
+
+
+        .mobile-toggle svg {
+
+            width: 22px;
+
+            height: 22px;
+
+        }
+
+
+
+        .sidebar-overlay {
+
+            display: none;
+
+            position: fixed;
+
+            inset: 0;
+
+            background: rgba(0, 0, 0, 0.5);
+
+            z-index: 90;
+
+        }
+
+
+
+        @media (max-width: 768px) {
+
+            .mobile-toggle {
+
+                display: flex;
+
+            }
+
+
+
+            .sidebar {
+
+                transform: translateX(-100%);
+
+            }
+
+
+
+            .sidebar.open {
+
+                transform: translateX(0);
+
+            }
+
+
+
+            .sidebar-overlay.show {
+
+                display: block;
+
+            }
+
+
+
+            .main-content {
+
+                margin-left: 0 !important;
+
+                width: 100% !important;
+
+                padding: 1rem !important;
+
+                padding-top: 4.5rem !important;
+
+            }
+
+
+
+            .top-header {
+
+                left: 0 !important;
+
+                width: 100% !important;
+
+            }
+
+        }
+
+
+
+        /* ── Main content ────────────────────────────── */
+
+        .main-content {
+
+            margin-left: var(--sidebar-width);
+
+            margin-top: var(--header-height);
+
+            width: calc(100% - var(--sidebar-width));
+
+            min-height: calc(100vh - var(--header-height));
+
+            padding: 2rem 2.5rem 3rem;
+
+            display: flex;
+
+            justify-content: center;
+
+            align-items: flex-start;
+
+        }
+
+
+
+        .page-container {
+
+            width: 100%;
+
+            max-width: 720px;
+
+            animation: pageIn 0.55s var(--ease-out);
+
+        }
+
+
+
+        @keyframes pageIn {
+
+            from {
+
+                opacity: 0;
+
+                transform: translateY(12px);
+
+            }
+
+
+
+            to {
+
+                opacity: 1;
+
+                transform: translateY(0);
+
+            }
+
+        }
+
+
+
+        /* ── Cards ────────────────────────────────────── */
+
+        .card {
+
+            background: var(--surface);
+
+            backdrop-filter: blur(12px);
+
+            border-radius: var(--radius-lg);
+
+            padding: 2.25rem 2.5rem;
+
+            box-shadow: var(--shadow-card);
+
+            border: 1px solid var(--border);
+
+        }
+
+
+
+        .card-title {
+
+            font-size: 1.75rem;
+
+            font-weight: 800;
+
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+
+            -webkit-background-clip: text;
+
+            -webkit-text-fill-color: transparent;
+
+            background-clip: text;
+
+            text-align: center;
+
+            letter-spacing: -0.6px;
+
+            margin-bottom: 0.25rem;
+
+        }
+
+
+
+        .card-subtitle {
+
+            text-align: center;
+
+            color: var(--text-muted);
+
+            margin-bottom: 2rem;
+
+            font-size: 0.95rem;
+
+            line-height: 1.55;
+
+        }
+
+
+
+        /* ── Shared form elements ────────────────────── */
+
+        .form-grid {
+
+            display: grid;
+
+            grid-template-columns: 1fr 1fr;
+
+            gap: 1rem;
+
+            margin-bottom: 1.5rem;
+
+        }
+
+
+
+        .form-group {
+
+            margin-bottom: 1.5rem;
+
+        }
+
+
+
+        label {
+
+            display: block;
+
+            margin-bottom: 0.5rem;
+
+            font-weight: 500;
+
+            color: var(--text-muted);
+
+            font-size: 0.9rem;
+
+        }
+
+
+
+        select,
+
+        input[type="text"],
+
+        input[type="email"],
+
+        input[type="password"] {
+
+            width: 100%;
+
+            padding: 0.72rem 1rem;
+
+            border-radius: var(--radius-sm);
+
+            background: var(--surface);
+
+            border: 1px solid var(--border);
+
+            color: var(--text-main);
+
+            font-family: inherit;
+
+            font-size: 0.95rem;
+
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+
+        }
+
+
+
+        select:focus,
+
+        input[type="text"]:focus,
+
+        input[type="email"]:focus,
+
+        input[type="password"]:focus {
+
+            outline: none;
+
+            border-color: var(--primary-light);
+
+            box-shadow: 0 0 0 4px var(--primary-glow);
+
+        }
+
+
+
+        /* ── Buttons ──────────────────────────────────── */
+
+        .btn-primary {
+
+            display: inline-flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            gap: 8px;
+
+            width: 100%;
+
+            padding: 0.82rem 1.5rem;
+
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 50%, var(--secondary) 100%);
+
+            background-size: 200% auto;
+
+            color: white;
+
+            border: none;
+
+            border-radius: var(--radius-sm);
+
+            font-size: 0.98rem;
+
+            font-weight: 700;
+
+            cursor: pointer;
+
+            transition: transform 0.2s var(--ease-out), box-shadow 0.2s ease, background-position 0.35s ease;
+
+            box-shadow: 0 4px 14px -3px rgba(13, 148, 136, 0.45);
+
+            font-family: inherit;
+
+            letter-spacing: 0.01em;
+
+        }
+
+
+
+        .btn-primary:hover {
+
+            transform: translateY(-2px);
+
+            box-shadow: 0 10px 24px -6px rgba(13, 148, 136, 0.5);
+
+            background-position: right center;
+
+        }
+
+
+
+        .btn-primary:active {
+
+            transform: translateY(0) scale(0.98);
+
+        }
+
+
+
+        .btn-secondary {
+
+            display: inline-flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            gap: 8px;
+
+            padding: 0.68rem 1.2rem;
+
+            background: var(--surface);
+
+            color: var(--primary-hover);
+
+            text-decoration: none;
+
+            border-radius: var(--radius-sm);
+
+            font-weight: 600;
+
+            font-size: 0.92rem;
+
+            transition: all 0.2s var(--ease-out);
+
+            border: 1px solid rgba(13, 148, 136, 0.25);
+
+            cursor: pointer;
+
+            font-family: inherit;
+
+            box-shadow: var(--shadow-soft);
+
+        }
+
+
+
+        .btn-secondary:hover {
+
+            transform: translateY(-2px);
+
+            background: rgba(13, 148, 136, 0.06);
+
+            border-color: var(--primary-light);
+
+        }
+
+
+
+        /* ── File upload ──────────────────────────────── */
+
+        .file-upload {
+
+            position: relative;
+
+            display: flex;
+
+            flex-direction: column;
+
+            align-items: center;
+
+            justify-content: center;
+
+            padding: 2.5rem;
+
+            border: 2px dashed rgba(13, 148, 136, 0.22);
+
+            border-radius: var(--radius-md);
+
+            background: linear-gradient(180deg, rgba(13, 148, 136, 0.03) 0%, rgba(99, 102, 241, 0.02) 100%);
+
+            cursor: pointer;
+
+            transition: border-color 0.25s ease, background 0.25s ease, transform 0.25s var(--ease-out);
+
+            margin-bottom: 1.5rem;
+
+        }
+
+
+
+        .file-upload:hover,
+
+        .file-upload.dragover {
+
+            border-color: var(--primary-light);
+
+            background: rgba(13, 148, 136, 0.06);
+
+            transform: translateY(-1px);
+
+        }
+
+
+
+        .file-upload input[type="file"] {
+
+            position: absolute;
+
+            width: 100%;
+
+            height: 100%;
+
+            opacity: 0;
+
+            cursor: pointer;
+
+            top: 0;
+
+            left: 0;
+
+        }
+
+
+
+        .upload-icon {
+
+            font-size: 2.5rem;
+
+            margin-bottom: 1rem;
+
+            color: var(--primary);
+
+        }
+
+
+
+        .file-list {
+
+            margin-top: 1rem;
+
+            font-size: 0.85rem;
+
+            color: var(--text-muted);
+
+            max-height: 100px;
+
+            overflow-y: auto;
+
+            text-align: center;
+
+        }
+
+
+
+        /* ── Progress / result ────────────────────────── */
+
+        .progress-container {
+
+            display: none;
+
+            margin-top: 1.5rem;
+
+            text-align: center;
+
+        }
+
+
+
+        .loader {
+
+            border: 3px solid rgba(2, 6, 23, 0.10);
+
+            border-top: 3px solid var(--primary);
+
+            border-radius: 50%;
+
+            width: 32px;
+
+            height: 32px;
+
+            animation: spin 1s linear infinite;
+
+            margin: 0 auto 1rem auto;
+
+        }
+
+
+
+        @keyframes spin {
+
+            0% {
+
+                transform: rotate(0deg)
+
+            }
+
+
+
+            100% {
+
+                transform: rotate(360deg)
+
+            }
+
+        }
+
+
+
+        #result-message {
+
+            margin-top: 1.5rem;
+
+            text-align: center;
+
+            font-weight: 500;
+
+            border-radius: 10px;
+
+            padding: 1rem;
+
+            display: none;
+
+            animation: fadeIn 0.3s ease;
+
+        }
+
+
+
+        @keyframes fadeIn {
+
+            from {
+
+                opacity: 0;
+
+                transform: translateY(-10px)
+
+            }
+
+
+
+            to {
+
+                opacity: 1;
+
+                transform: translateY(0)
+
+            }
+
+        }
+
+
+
+        .success {
+
+            background: rgba(13, 148, 136, 0.08);
+
+            color: var(--primary-hover);
+
+            border: 1px solid rgba(13, 148, 136, 0.2);
+
+        }
+
+
+
+        .error {
+
+            background: rgba(239, 68, 68, 0.08);
+
+            color: var(--danger);
+
+            border: 1px solid rgba(239, 68, 68, 0.18);
+
+        }
+
+
+
+        /* ── Admin avatar (top-right) ──────────────────── */
+
+        .admin-fab {
+
+            position: fixed;
+
+            top: calc(var(--header-height) + 14px);
+
+            right: 18px;
+
+            z-index: 250;
+
+            width: 42px;
+
+            height: 42px;
+
+            border-radius: 999px;
+
+            border: 1px solid var(--border);
+
+            background: var(--surface);
+
+            backdrop-filter: blur(10px);
+
+            box-shadow: var(--shadow-soft);
+
+            display: inline-flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            text-decoration: none;
+
+            transition: transform 0.2s var(--ease-out), box-shadow 0.2s ease, border-color 0.2s ease;
+
+            overflow: hidden;
+
+        }
+
+
+
+        .admin-fab:hover {
+
+            transform: translateY(-2px);
+
+            border-color: rgba(13, 148, 136, 0.35);
+
+            box-shadow: var(--shadow-card);
+
+        }
+
+
+
+        .admin-fab:active {
+
+            transform: scale(0.98);
+
+        }
+
+
+
+        .admin-fab svg {
+
+            width: 22px;
+
+            height: 22px;
+
+            color: var(--text-main);
+
+            opacity: 0.9;
+
+        }
+
+
+
+        .admin-fab::after {
+
+            content: "";
+
+            position: absolute;
+
+            inset: -40%;
+
+            background: radial-gradient(circle at 30% 30%, rgba(99, 102, 241, 0.18), transparent 55%),
+
+                radial-gradient(circle at 70% 70%, rgba(192, 132, 252, 0.14), transparent 55%);
+
+            pointer-events: none;
+
+        }
+
+
+
+        /* ── Top Header with Auth Buttons ────────────────────────────── */
+
+        body.sidebar-is-collapsed .top-header {
+            left: var(--sidebar-collapsed-width);
+        }
+
+        .top-header {
+
+            position: fixed;
+
+            top: 0;
+
+            left: var(--sidebar-width);
+
+            right: 0;
+
+            transition: left 0.35s var(--ease-out);
+
+            height: var(--header-height);
+
+            background: rgba(255, 255, 255, 0.82);
+
+            backdrop-filter: blur(16px) saturate(1.2);
+
+            -webkit-backdrop-filter: blur(16px) saturate(1.2);
+
+            border-bottom: 1px solid var(--border);
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: flex-end;
+
+            padding: 0 1.75rem;
+
+            z-index: 75;
+
+            gap: 0.75rem;
+
+        }
+
+
+
+        .btn-header {
+
+            display: inline-flex;
+
+            align-items: center;
+
+            gap: 7px;
+
+            padding: 0.52rem 1rem;
+
+            border-radius: var(--radius-sm);
+
+            background: var(--surface);
+
+            border: 1px solid var(--border);
+
+            color: var(--text-main);
+
+            text-decoration: none;
+
+            font-weight: 600;
+
+            font-size: 0.85rem;
+
+            cursor: pointer;
+
+            transition: all 0.2s var(--ease-out);
+
+            font-family: inherit;
+
+        }
+
+
+
+        .btn-header:hover {
+
+            background: rgba(13, 148, 136, 0.06);
+
+            border-color: rgba(13, 148, 136, 0.25);
+
+            color: var(--primary-hover);
+
+            transform: translateY(-1px);
+
+        }
+
+
+
+        .btn-header-primary {
+
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+
+            border: none;
+
+            color: white;
+
+            box-shadow: 0 4px 12px -4px rgba(13, 148, 136, 0.4);
+
+        }
+
+
+
+        .btn-header-primary:hover {
+
+            background: linear-gradient(135deg, var(--primary-hover) 0%, #4f46e5 100%);
+
+            border-color: transparent;
+
+            color: white;
+
+        }
+
+
+
+        .btn-header svg {
+
+            width: 18px;
+
+            height: 18px;
+
+        }
+
+
+
+        /* ── User authenticated display ─ */
+
+        .header-user-info {
+
+            display: flex;
+
+            flex-direction: column;
+
+            align-items: flex-start;
+
+            margin-right: auto;
+
+            gap: 2px;
+
+        }
+
+
+
+        .user-name {
+
+            font-weight: 600;
+
+            color: var(--text-main);
+
+            font-size: 0.95rem;
+
+        }
+
+
+
+        .user-email {
+
+            font-size: 0.8rem;
+
+            color: var(--text-muted);
+
+        }
+
+
+
+        .btn-logout {
+
+            background: rgba(239, 68, 68, 0.1);
+
+            color: #ef4444;
+
+            border: 1px solid rgba(239, 68, 68, 0.3);
+
+        }
+
+
+
+        .btn-logout:hover {
+
+            background: rgba(239, 68, 68, 0.2);
+
+            border-color: #ef4444;
+
+            color: #dc2626;
+
+        }
+
+
+
+        /* ── Global converter status (all pages, survives sidebar nav) ─ */
+
+        .global-converter-dock {
+
+            position: fixed;
+
+            bottom: 1.25rem;
+
+            right: 1.25rem;
+
+            z-index: 220;
+
+            max-width: min(440px, calc(100vw - 2rem - var(--sidebar-width)));
+
+            border-radius: var(--radius-md);
+
+            border: 1px solid var(--border);
+
+            background: rgba(255, 255, 255, 0.96);
+
+            backdrop-filter: blur(16px);
+
+            box-shadow: var(--shadow-card);
+
+            padding: 0.9rem 1rem 0.85rem;
+
+            font-size: 0.88rem;
+
+            color: var(--text-main);
+
+        }
+
+
+
+        .global-converter-dock-head {
+
+            display: flex;
+
+            align-items: flex-start;
+
+            justify-content: space-between;
+
+            gap: 0.75rem;
+
+            margin-bottom: 0.5rem;
+
+        }
+
+
+
+        .global-converter-dock-title {
+
+            font-weight: 700;
+
+            font-size: 0.82rem;
+
+            letter-spacing: 0.02em;
+
+            color: var(--text-main);
+
+        }
+
+
+
+        .global-converter-dock-muted {
+
+            font-size: 0.78rem;
+
+            color: var(--text-muted);
+
+            margin-top: 2px;
+
+            line-height: 1.35;
+
+        }
+
+
+
+        .global-converter-dock-close {
+
+            flex-shrink: 0;
+
+            border: none;
+
+            background: rgba(2, 6, 23, 0.06);
+
+            width: 28px;
+
+            height: 28px;
+
+            border-radius: 8px;
+
+            cursor: pointer;
+
+            color: var(--text-muted);
+
+            font-size: 1.1rem;
+
+            line-height: 1;
+
+        }
+
+
+
+        .global-converter-dock-close:hover {
+
+            background: rgba(2, 6, 23, 0.10);
+
+            color: var(--text-main);
+
+        }
+
+
+
+        .global-converter-dock-close:disabled {
+
+            opacity: 0.35;
+
+            cursor: default;
+
+        }
+
+
+
+        .global-converter-dock-actions {
+
+            display: flex;
+
+            flex-wrap: wrap;
+
+            gap: 0.5rem;
+
+            margin-top: 0.65rem;
+
+        }
+
+
+
+        .global-converter-dock-actions a {
+
+            display: inline-flex;
+
+            align-items: center;
+
+            gap: 6px;
+
+            padding: 0.45rem 0.75rem;
+
+            border-radius: 9px;
+
+            font-weight: 600;
+
+            font-size: 0.8rem;
+
+            text-decoration: none;
+
+            border: 1px solid transparent;
+
+        }
+
+
+
+        .global-converter-dock-actions a.dock-dl {
+
+            background: rgba(2, 6, 23, 0.04);
+
+            border-color: rgba(2, 6, 23, 0.12);
+
+            color: var(--text-main);
+
+        }
+
+
+
+        .global-converter-dock-actions a.dock-preview {
+
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+
+            color: white;
+
+            border: none;
+
+        }
+
+
+
+        .global-converter-dock-actions a.dock-export {
+
+            background: linear-gradient(135deg, rgba(13, 148, 136, 0.14), rgba(99, 102, 241, 0.1));
+
+            border-color: rgba(13, 148, 136, 0.28);
+
+            color: var(--primary-hover);
+
+        }
+
+
+
+        .global-converter-dock .dock-loader {
+
+            width: 22px;
+
+            height: 22px;
+
+            border: 2px solid rgba(2, 6, 23, 0.10);
+
+            border-top-color: var(--primary);
+
+            border-radius: 50%;
+
+            animation: spin 0.85s linear infinite;
+
+            flex-shrink: 0;
+
+        }
+
+
+
+        .global-converter-dock-running {
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 0.65rem;
+
+        }
+
+
+
+        @media (max-width: 768px) {
+
+            .global-converter-dock {
+
+                right: 1rem;
+
+                left: 1rem;
+
+                max-width: none;
+
+            }
+
+        }
+
+
+
+        /* ── Viewer Mode ────────────────────────────── */
+
+        body.viewer-mode-active .edit-only,
+
+        body.viewer-mode-active .btn-primary,
+
+        body.viewer-mode-active form button[type="submit"] {
+
+            pointer-events: none;
+
+            opacity: 0.5;
+
+            cursor: not-allowed;
+
+            position: relative;
+
+        }
+
+        body.viewer-mode-active .viewer-mode-badge {
+
+            display: inline-flex;
+
+            align-items: center;
+
+            gap: 6px;
+
+            padding: 0.3rem 0.85rem;
+
+            border-radius: 100px;
+
+            background: rgba(239, 68, 68, 0.1);
+
+            border: 1px solid rgba(239, 68, 68, 0.2);
+
+            color: #ef4444;
+
+            font-size: 0.75rem;
+
+            font-weight: 600;
+
+            text-transform: uppercase;
+
+            letter-spacing: 0.5px;
+
+        }
+
+
+
+        .viewer-toggle-btn {
+
+            display: inline-flex;
+
+            align-items: center;
+
+            gap: 8px;
+
+            padding: 0.5rem 1rem;
+
+            border-radius: 10px;
+
+            background: rgba(2, 6, 23, 0.05);
+
+            border: 1px solid rgba(2, 6, 23, 0.1);
+
+            color: var(--text-main);
+
+            font-size: 0.85rem;
+
+            font-weight: 600;
+
+            cursor: pointer;
+
+            transition: all 0.2s;
+
+        }
+
+        .viewer-toggle-btn:hover {
+
+            background: rgba(2, 6, 23, 0.08);
+
+        }
+
+        .viewer-toggle-btn.active {
+
+            background: rgba(13, 148, 136, 0.1);
+
+            border-color: rgba(13, 148, 136, 0.3);
+
+            color: var(--primary-hover);
+
+        }
+
+
+
+        /* Scrollbar (webkit) */
+
+        .sidebar-nav::-webkit-scrollbar {
+
+            width: 5px;
+
+        }
+
+        .sidebar-nav::-webkit-scrollbar-thumb {
+
+            background: rgba(255, 255, 255, 0.12);
+
+            border-radius: 4px;
+
+        }
+
+
+
+        /* Auth pages */
+
+        .auth-card { max-width: 420px; margin: 0 auto; }
+
+        .auth-footer {
+
+            text-align: center;
+
+            margin-top: 1.5rem;
+
+            padding-top: 1.5rem;
+
+            border-top: 1px solid var(--border);
+
+        }
+
+        .auth-footer p { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem; }
+
+        .auth-footer-links {
+
+            display: flex;
+
+            flex-wrap: wrap;
+
+            gap: 0.5rem;
+
+            justify-content: center;
+
+            align-items: center;
+
+        }
+
+        .auth-link-muted {
+
+            color: var(--text-muted);
+
+            text-decoration: none;
+
+            padding: 0.6rem 1rem;
+
+            border-radius: var(--radius-sm);
+
+            font-weight: 500;
+
+            font-size: 0.9rem;
+
+            transition: color 0.2s ease;
+
+        }
+
+        .auth-link-muted:hover { color: var(--primary-hover); }
+
+
+
+        /* ── Extra block styles (used by child templates) ─ */
+
+    </style>
+
+    {% block extra_styles %}{% endblock %}
+
+</head>
+
+
+
+<body class="{% if request.session.viewer_mode %}viewer-mode-active{% endif %}">
+
+
+
+    <!-- Top Header with Auth Buttons -->
+
+    <header class="top-header">
+
+        <!-- Viewer Mode Toggle -->
+
+        <button type="button" class="viewer-toggle-btn {% if request.session.viewer_mode %}active{% endif %}" id="viewer-mode-toggle" title="Toggle Viewer Mode">
+
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+
+                <circle cx="12" cy="12" r="3"></circle>
+
+            </svg>
+
+            <span id="viewer-mode-text">{% if request.session.viewer_mode %}Viewer Mode ON{% else %}Viewer Mode OFF{% endif %}</span>
+
+        </button>
+
+
+
+        {% if user.is_authenticated %}
+
+            <div class="header-user-info">
+
+                <span class="user-name">{{ user.first_name|default:user.username }}</span>
+
+                <span class="user-email">{{ user.email }}</span>
+
+            </div>
+
+            <a href="{% url 'converter:logout' %}" class="btn-header btn-logout">
+
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+
+                    <polyline points="16 17 21 12 16 7"></polyline>
+
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+
+                </svg>
+
+                Logout
+
+            </a>
+
+        {% else %}
+
+            <a href="{% url 'converter:login' %}" class="btn-header">
+
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+
+                    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+
+                    <polyline points="10 17 15 12 10 7"></polyline>
+
+                    <line x1="15" y1="12" x2="3" y2="12"></line>
+
+                </svg>
+
+                Login
+
+            </a>
+
+            <a href="{% url 'converter:signup' %}" class="btn-header btn-header-primary">
+
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+
+                    <circle cx="8.5" cy="7" r="4"></circle>
+
+                    <line x1="20" y1="8" x2="20" y2="14"></line>
+
+                    <line x1="23" y1="11" x2="17" y2="11"></line>
+
+                </svg>
+
+                Sign Up
+
+            </a>
+
+        {% endif %}
+
+    </header>
+
+
+
+    <a class="admin-fab" href="{% url 'converter:admin_panel' %}" title="Admin Panel" aria-label="Admin Panel">
+
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
+
+            stroke-linejoin="round" aria-hidden="true">
+
+            <path d="M20 21a8 8 0 0 0-16 0"></path>
+
+            <circle cx="12" cy="9" r="4"></circle>
+
+        </svg>
+
+    </a>
+
+
+
+    <!-- Mobile hamburger -->
+
+    <button class="mobile-toggle" id="mobile-toggle" aria-label="Toggle sidebar">
+
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+
+            stroke-linejoin="round">
+
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+
+        </svg>
+
+    </button>
+
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+
+
+    <!-- ── Sidebar ────────────────────────────────────── -->
+
+    <aside class="sidebar" id="sidebar">
+
+        <div class="sidebar-brand">
+
+            <div class="sidebar-brand-inner">
+
+                <div class="sidebar-logo" aria-hidden="true">
+
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+                        <polyline points="16 3 21 3 21 8"></polyline>
+
+                        <line x1="4" y1="20" x2="21" y2="3"></line>
+
+                        <polyline points="21 16 21 21 16 21"></polyline>
+
+                        <line x1="15" y1="15" x2="21" y2="21"></line>
+
+                        <line x1="4" y1="4" x2="9" y2="9"></line>
+
+                    </svg>
+
+                </div>
+
+                <div>
+
+                    <h2>GIS Tool</h2>
+
+                    <span>Batch Convert & Search</span>
+
+                </div>
+
+            </div>
+
+            <button class="sidebar-toggle-btn" id="sidebar-toggle" aria-label="Toggle sidebar">
+
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+
+                </svg>
+
+            </button>
+
+        </div>
+
+
+
+        <nav class="sidebar-nav">
+
+            <a href="{% url 'converter:index' %}" class="{% if active_page == 'converter' %}active{% endif %}"
+
+                id="nav-converter">
+
+                <span class="nav-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg></span>
+
+                Converter
+
+            </a>
+
+            <a href="{% url 'converter:preview' %}" class="{% if active_page == 'preview' %}active{% endif %}"
+
+                id="nav-preview">
+
+                <span class="nav-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></span>
+
+                Preview Layer
+
+            </a>
+
+            <a href="{% url 'converter:search' %}" class="{% if active_page == 'search' %}active{% endif %}"
+
+                id="nav-search">
+
+                <span class="nav-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></span>
+
+                Search Word
+
+            </a>
+
+            <a href="{% url 'converter:location_export' %}" class="{% if active_page == 'location_export' %}active{% endif %}"
+
+                id="nav-location-export">
+
+                <span class="nav-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg></span>
+
+                Location Export
+
+            </a>
+
+            <a href="{% url 'converter:raster_spike' %}" class="{% if active_page == 'raster_spike' %}active{% endif %}"
+
+                id="nav-raster-spike">
+
+                <span class="nav-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg></span>
+
+                Raster Spike
+
+            </a>
+
+            <a href="{% url 'converter:file_upload_page' %}" class="{% if active_page == 'file_upload_page' %}active{% endif %}" id="nav-file-upload">
+
+                <span class="nav-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg></span> Upload Files
+
+            </a>
+
+            <a href="{% url 'converter:file_list' %}" class="{% if active_page == 'file_list' %}active{% endif %}" id="nav-files">
+
+                <span class="nav-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg></span> Files List
+
+            </a>
+
+            <a href="{% url 'converter:workflow_catalog' %}" class="{% if active_page == 'workflow_catalog' %}active{% endif %}" id="nav-workflows">
+
+                <span class="nav-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg></span> Workflows
+
+            </a>
+
+            <a href="{% url 'converter:job_list' %}" class="{% if active_page == 'job_list' %}active{% endif %}" id="nav-jobs">
+
+                <span class="nav-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg></span> Jobs
+
+            </a>
+
+            <a href="{% url 'converter:dispatched_layers_list' %}" class="{% if active_page == 'dispatched_layers_list' %}active{% endif %}" id="nav-dispatched-layers">
+
+                <span class="nav-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg></span> Location Exports
+
+            </a>
+
+            <a href="{% url 'converter:admin_panel' %}" class="{% if active_page == 'admin' %}active{% endif %}"
+
+                id="nav-admin">
+
+                <span class="nav-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg></span>
+
+                Admin Panel
+
+            </a>
+
+        </nav>
+
+
+
+        <div class="sidebar-footer">
+
+            <button type="button" class="sidebar-expand-btn" id="sidebar-expand" aria-label="Expand sidebar">
+
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+
+                    <polyline points="9 18 15 12 9 6"></polyline>
+
+                </svg>
+
+            </button>
+
+            <span class="sidebar-footer-text">&copy; 2026 GIS Batch Converter</span>
+
+        </div>
+
+    </aside>
+
+
+
+    <!-- ── Main ───────────────────────────────────────── -->
+
+    <main class="main-content">
+
+        <div class="page-container">
+
+            {% block content %}{% endblock %}
+
+        </div>
+
+    </main>
+
+
+
+    <div id="global-converter-dock" class="global-converter-dock" hidden aria-live="polite">
+
+        <div class="global-converter-dock-head">
+
+            <div>
+
+                <div class="global-converter-dock-title" id="global-converter-dock-title">Converter</div>
+
+                <div class="global-converter-dock-muted" id="global-converter-dock-muted"></div>
+
+            </div>
+
+            <button type="button" class="global-converter-dock-close" id="global-converter-dock-close"
+
+                aria-label="Hide">×</button>
+
+        </div>
+
+        <div id="global-converter-dock-body"></div>
+
+    </div>
+
+
+
+    <!-- Sidebar toggle script -->
+
+    <script>
+
+        const sidebar = document.getElementById('sidebar');
+
+        const overlay = document.getElementById('sidebar-overlay');
+
+        const toggle = document.getElementById('mobile-toggle');
+
+        const sidebarToggle = document.getElementById('sidebar-toggle');
+
+        const sidebarExpand = document.getElementById('sidebar-expand');
+
+
+
+        function setSidebarCollapsed(collapsed) {
+
+            sidebar.classList.toggle('collapsed', collapsed);
+
+            document.body.classList.toggle('sidebar-is-collapsed', collapsed);
+
+        }
+
+
+
+        toggle.addEventListener('click', () => {
+
+            sidebar.classList.toggle('open');
+
+            overlay.classList.toggle('show');
+
+        });
+
+        overlay.addEventListener('click', () => {
+
+            sidebar.classList.remove('open');
+
+            overlay.classList.remove('show');
+
+        });
+
+
+
+        // Sidebar collapse/expand toggle
+
+        sidebarToggle.addEventListener('click', () => {
+
+            setSidebarCollapsed(!sidebar.classList.contains('collapsed'));
+
+        });
+
+        if (sidebarExpand) {
+
+            sidebarExpand.addEventListener('click', () => {
+
+                setSidebarCollapsed(false);
+
+            });
+
+        }
+
+    </script>
+
+
+
+    <script>
+
+        (function () {
+
+            const PENDING_KEY = 'converter_pending_task_id';
+
+            const RESULT_KEY = 'converter_dock_result';
+
+
+
+            const dock = document.getElementById('global-converter-dock');
+
+            const dockTitle = document.getElementById('global-converter-dock-title');
+
+            const dockMuted = document.getElementById('global-converter-dock-muted');
+
+            const dockBody = document.getElementById('global-converter-dock-body');
+
+            const dockClose = document.getElementById('global-converter-dock-close');
+
+            if (!dock || !dockBody) return;
+
+
+
+            let pollGeneration = 0;
+
+
+
+            function sleep(ms) {
+
+                return new Promise(function (resolve) { setTimeout(resolve, ms); });
+
+            }
+
+
+
+            function showDock() {
+
+                dock.hidden = false;
+
+            }
+
+
+
+            function hideDock() {
+
+                dock.hidden = true;
+
+                dockBody.innerHTML = '';
+
+                dockMuted.textContent = '';
+
+                dockTitle.textContent = 'Converter';
+
+            }
+
+
+
+            function renderRunning() {
+
+                dockTitle.textContent = 'Converter — processing';
+
+                dockMuted.textContent = 'processing.....';
+
+                dockBody.innerHTML = '<div class="global-converter-dock-running"><div class="dock-loader" aria-hidden="true"></div><span>Converting files…</span></div>';
+
+                dockClose.disabled = true;
+
+            }
+
+
+
+            function renderSuccess(downloadUrl, taskId) {
+
+                dockTitle.textContent = 'Converter — ready';
+
+                dockMuted.textContent = 'Output preview, download, or send export';
+
+                dockBody.innerHTML =
+
+                    '<div class="global-converter-dock-actions">' +
+
+                    '<a class="dock-preview" href="/preview/?task_id=' + encodeURIComponent(taskId) + '">Output Preview</a>' +
+
+                    '<a class="dock-dl" href="' + downloadUrl + '">Download ZIP</a>' +
+
+                    '<a class="dock-export" href="/location-export/?conversion_task_id=' + encodeURIComponent(taskId) + '">Send Export</a>' +
+
+                    '</div>';
+
+                dockClose.disabled = false;
+
+            }
+
+
+
+            function renderError(msg) {
+
+                dockTitle.textContent = 'Converter — error';
+
+                dockMuted.textContent = msg || 'Conversion failed.';
+
+                dockBody.innerHTML = '';
+
+                dockClose.disabled = false;
+
+            }
+
+
+
+            function persistResult(obj) {
+
+                try {
+
+                    sessionStorage.setItem(RESULT_KEY, JSON.stringify(obj));
+
+                } catch (e) { /* ignore */ }
+
+            }
+
+
+
+            function readResult() {
+
+                try {
+
+                    var raw = sessionStorage.getItem(RESULT_KEY);
+
+                    return raw ? JSON.parse(raw) : null;
+
+                } catch (e) {
+
+                    return null;
+
+                }
+
+            }
+
+
+
+            function clearResult() {
+
+                try {
+
+                    sessionStorage.removeItem(RESULT_KEY);
+
+                } catch (e) { /* ignore */ }
+
+            }
+
+
+
+            async function pollUntilDone(taskId) {
+
+                var gen = ++pollGeneration;
+
+                var url = '/convert/status/' + taskId + '/';
+
+                while (gen === pollGeneration) {
+
+                    var response = await fetch(url, { credentials: 'same-origin' });
+
+                    if (response.status === 404) {
+
+                        sessionStorage.removeItem(PENDING_KEY);
+
+                        persistResult({ s: 'err', error: 'Conversion not found.' });
+
+                        showDock();
+
+                        renderError('Conversion not found.');
+
+                        return;
+
+                    }
+
+                    if (!response.ok) {
+
+                        sessionStorage.removeItem(PENDING_KEY);
+
+                        persistResult({ s: 'err', error: 'Status check failed (' + response.status + ').' });
+
+                        showDock();
+
+                        renderError('Status check failed (' + response.status + ').');
+
+                        return;
+
+                    }
+
+                    var payload = await response.json();
+
+                    if (payload.status === 'success') {
+
+                        sessionStorage.removeItem(PENDING_KEY);
+
+                        persistResult({
+
+                            s: 'ok',
+
+                            download_url: payload.download_url,
+
+                            task_id: payload.task_id
+
+                        });
+
+                        showDock();
+
+                        renderSuccess(payload.download_url, payload.task_id);
+
+                        return;
+
+                    }
+
+                    if (payload.status === 'error') {
+
+                        sessionStorage.removeItem(PENDING_KEY);
+
+                        persistResult({ s: 'err', error: payload.error || 'Conversion failed' });
+
+                        showDock();
+
+                        renderError(payload.error || 'Conversion failed');
+
+                        return;
+
+                    }
+
+                    await sleep(1500);
+
+                }
+
+            }
+
+
+
+            function syncDockFromStorage() {
+
+                var pending = sessionStorage.getItem(PENDING_KEY);
+
+                var saved = readResult();
+
+                if (pending) {
+
+                    showDock();
+
+                    renderRunning();
+
+                    pollUntilDone(pending);
+
+                    return;
+
+                }
+
+                if (saved && saved.s === 'ok' && saved.download_url && saved.task_id) {
+
+                    showDock();
+
+                    renderSuccess(saved.download_url, saved.task_id);
+
+                    return;
+
+                }
+
+                if (saved && saved.s === 'err') {
+
+                    showDock();
+
+                    renderError(saved.error);
+
+                    return;
+
+                }
+
+                hideDock();
+
+            }
+
+
+
+            dockClose.addEventListener('click', function () {
+
+                if (dockClose.disabled) return;
+
+                if (sessionStorage.getItem(PENDING_KEY)) return;
+
+                clearResult();
+
+                hideDock();
+
+            });
+
+
+
+            window.addEventListener('gis-converter-pending', function (ev) {
+
+                try {
+
+                    sessionStorage.removeItem(RESULT_KEY);
+
+                } catch (e2) { /* ignore */ }
+
+                var tid = (ev && ev.detail && ev.detail.taskId) || sessionStorage.getItem(PENDING_KEY);
+
+                if (!tid) return;
+
+                showDock();
+
+                renderRunning();
+
+                pollUntilDone(tid);
+
+            });
+
+
+
+            window.addEventListener('gis-converter-complete', function (ev) {
+
+                var d = ev && ev.detail;
+
+                if (!d || !d.downloadUrl || !d.taskId) return;
+
+                try {
+
+                    sessionStorage.removeItem(PENDING_KEY);
+
+                } catch (e3) { /* ignore */ }
+
+                persistResult({ s: 'ok', download_url: d.downloadUrl, task_id: d.taskId });
+
+                showDock();
+
+                renderSuccess(d.downloadUrl, d.taskId);
+
+            });
+
+
+
+            document.addEventListener('DOMContentLoaded', syncDockFromStorage);
+
+        })();
+
+
+
+        // Viewer mode toggle logic
+
+        document.addEventListener('DOMContentLoaded', function() {
+
+            var viewerToggleBtn = document.getElementById('viewer-mode-toggle');
+
+            if (viewerToggleBtn) {
+
+                viewerToggleBtn.addEventListener('click', async function() {
+
+                    viewerToggleBtn.disabled = true;
+
+                    try {
+
+                        const csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
+
+                        const csrf = csrfInput ? csrfInput.value : '';
+
+                        
+
+                        const res = await fetch("{% url 'converter:toggle_viewer_mode' %}", {
+
+                            method: 'POST',
+
+                            headers: {
+
+                                'X-CSRFToken': csrf,
+
+                                'Content-Type': 'application/json'
+
+                            }
+
+                        });
+
+                        
+
+                        if (res.ok) {
+
+                            const data = await res.json();
+
+                            if (data.viewer_mode) {
+
+                                document.body.classList.add('viewer-mode-active');
+
+                                viewerToggleBtn.classList.add('active');
+
+                                document.getElementById('viewer-mode-text').textContent = 'Viewer Mode ON';
+
+                            } else {
+
+                                document.body.classList.remove('viewer-mode-active');
+
+                                viewerToggleBtn.classList.remove('active');
+
+                                document.getElementById('viewer-mode-text').textContent = 'Viewer Mode OFF';
+
+                            }
+
+                        }
+
+                    } catch (e) {
+
+                        console.error('Failed to toggle viewer mode:', e);
+
+                    } finally {
+
+                        viewerToggleBtn.disabled = false;
+
+                    }
+
+                });
+
+            }
+
+        });
+
+    </script>
+
+
+
+    {% block extra_scripts %}{% endblock %}
+
+</body>
+
+
+
+</html>
+

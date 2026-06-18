@@ -1,0 +1,49 @@
+{% extends 'converter/base.html' %}
+{% block title %}File Detail — Operator Panel{% endblock %}
+{% block content %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h1 class="card-title" style="margin: 0; text-align: left;">File Metadata</h1>
+        <a href="{% url 'converter:file_list' %}" class="btn-secondary" style="margin: 0;">Back to List</a>
+    </div>
+
+    <div style="margin-bottom: 30px; padding: 20px; background: rgba(0,0,0,0.02); border-radius: 12px; border: 1px solid var(--border);">
+        <h2 style="margin-bottom: 15px;">{{ file.original_file_name }}</h2>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 0.95em;">
+            <div><strong>Source Type:</strong> {{ file.source_type|upper }}</div>
+            <div><strong>File Format:</strong> {{ file.file_type|upper }}</div>
+            <div><strong>File Size:</strong> {{ file.size_bytes }} Bytes</div>
+            <div><strong>Checksum (SHA256):</strong> {{ file.checksum_sha256|default:"N/A" }}</div>
+            <div><strong>Storage Path:</strong> <code style="word-break: break-all;">{{ file.storage_path }}</code></div>
+            <div><strong>Uploaded By:</strong> {{ file.uploaded_by|default:"N/A" }}</div>
+        </div>
+        
+        <div style="margin-top: 20px; display: flex; gap: 10px;">
+            <a href="{% url 'converter:file_validation_result' file.id %}" class="btn-primary" style="margin: 0; width: auto;">Run Format Validation</a>
+            <a href="{% url 'converter:assign_crs' file.id %}" class="btn-secondary" style="margin: 0;">Assign CRS</a>
+            <a href="{% url 'converter:workflow_catalog' %}?file={{ file.id }}" class="btn-secondary" style="margin: 0; background: var(--secondary); color: white; border: none;">Run Workflow</a>
+        </div>
+    </div>
+
+    <h2 style="margin-bottom: 15px;">Layer Definitions</h2>
+    {% for layer in layers %}
+        <div style="margin-bottom: 15px; padding: 15px; border-radius: 8px; border: 1px solid var(--border); background: white;">
+            <h3 style="margin-bottom: 8px;">{{ layer.layer_name }}</h3>
+            <p><strong>Geometry Type:</strong> {{ layer.geometry_type }}</p>
+            <p><strong>Features Count:</strong> {{ layer.feature_count }}</p>
+            <p><strong>Spatial CRS (EPSG):</strong> {{ layer.source_crs_epsg|default:"MISSING (No projection)" }}</p>
+            {% if layer.bbox %}
+                <p><strong>Bounding Box (BBOX):</strong> <code style="font-size: 0.85em;">{{ layer.bbox }}</code></p>
+            {% endif %}
+            {% if layer.fields %}
+                <p style="margin-top: 10px;"><strong>Attribute Fields Schema:</strong></p>
+                <pre style="background: var(--bg-color); padding: 8px; border-radius: 6px; font-size: 0.85em; overflow: auto; max-height: 120px;">{{ layer.fields }}</pre>
+            {% endif %}
+        </div>
+    {% empty %}
+        <div style="padding: 20px; text-align: center; color: var(--text-muted); background: white; border-radius: 8px; border: 1px solid var(--border);">
+            No layers parsed or discovered. Ensure validation or import is triggered successfully.
+        </div>
+    {% endfor %}
+</div>
+{% endblock %}

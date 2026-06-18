@@ -1,0 +1,682 @@
+{% extends "converter/base.html" %}
+
+{% block title %}Airport Search — Major Airports Database{% endblock %}
+
+{% block extra_styles %}
+<style>
+    /* ── Airport Search Layout ───────────────────── */
+    .search-container {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+
+    /* ── Search Form ──────────────────────────────── */
+    .search-form-panel {
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: blur(10px);
+        border-radius: 16px;
+        border: 1px solid rgba(2, 6, 23, 0.08);
+        box-shadow: 0 18px 40px -22px rgba(2, 6, 23, 0.22);
+        padding: 1.5rem;
+    }
+
+    .search-form-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1.25rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .search-form-header h2 {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: var(--text-main);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .search-form-header h2 svg {
+        width: 20px;
+        height: 20px;
+        color: var(--primary);
+    }
+
+    .search-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.25rem;
+    }
+
+    .search-field {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+    }
+
+    .search-field label {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .search-field input {
+        padding: 0.75rem 1rem;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.9);
+        font-size: 0.95rem;
+        transition: all 0.2s ease;
+    }
+
+    .search-field input:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px var(--primary-glow);
+    }
+
+    .search-actions {
+        display: flex;
+        gap: 0.75rem;
+    }
+
+    .btn-search {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0.75rem 1.5rem;
+        background: linear-gradient(135deg, var(--primary), #818cf8);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 0.95rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 4px 12px -2px rgba(99, 102, 241, 0.4);
+    }
+
+    .btn-search:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px -4px rgba(99, 102, 241, 0.5);
+    }
+
+    .btn-export {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0.75rem 1.5rem;
+        background: rgba(16, 185, 129, 0.12);
+        border: 1px solid rgba(16, 185, 129, 0.24);
+        color: #047857;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 0.95rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .btn-export:hover {
+        background: rgba(16, 185, 129, 0.18);
+        transform: translateY(-2px);
+    }
+
+    /* ── Results Section ────────────────────────── */
+    .results-container {
+        display: flex;
+        gap: 1.5rem;
+        min-height: calc(100vh - 400px);
+    }
+
+    /* ── Results Sidebar ─────────────────────────── */
+    .results-sidebar {
+        width: 350px;
+        flex-shrink: 0;
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: blur(10px);
+        border-radius: 16px;
+        border: 1px solid rgba(2, 6, 23, 0.08);
+        box-shadow: 0 18px 40px -22px rgba(2, 6, 23, 0.22);
+        display: flex;
+        flex-direction: column;
+        max-height: calc(100vh - 350px);
+    }
+
+    .results-header {
+        padding: 1.25rem;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .results-header h3 {
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--text-main);
+        margin-bottom: 0.4rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .results-header h3 svg {
+        width: 18px;
+        height: 18px;
+        color: var(--primary);
+    }
+
+    .results-count {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+    }
+
+    .results-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 0.5rem;
+    }
+
+    .results-list::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .results-list::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .results-list::-webkit-scrollbar-thumb {
+        background: var(--border);
+        border-radius: 3px;
+    }
+
+    .result-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        padding: 1rem;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        margin-bottom: 4px;
+        border: 1px solid transparent;
+    }
+
+    .result-item:hover {
+        background: var(--surface-hover);
+        border-color: rgba(99, 102, 241, 0.2);
+    }
+
+    .result-item.active {
+        background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(192, 132, 252, 0.10));
+        border-color: rgba(99, 102, 241, 0.3);
+        box-shadow: 0 2px 8px rgba(99, 102, 241, 0.1);
+    }
+
+    .result-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        background: rgba(99, 102, 241, 0.12);
+        color: var(--primary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .result-icon svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .result-item.active .result-icon {
+        background: var(--primary);
+        color: white;
+    }
+
+    .result-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .result-name {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--text-main);
+        margin-bottom: 3px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .result-meta {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+    }
+
+    .result-code {
+        padding: 1px 6px;
+        background: rgba(99, 102, 241, 0.1);
+        border-radius: 4px;
+        font-weight: 600;
+        color: var(--primary);
+    }
+
+    /* ── Detail View ─────────────────────────────── */
+    .detail-view {
+        flex: 1;
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: blur(10px);
+        border-radius: 16px;
+        border: 1px solid rgba(2, 6, 23, 0.08);
+        box-shadow: 0 18px 40px -22px rgba(2, 6, 23, 0.22);
+        padding: 1.5rem;
+        overflow-y: auto;
+        max-height: calc(100vh - 350px);
+    }
+
+    .detail-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .detail-header h2 {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--text-main);
+        line-height: 1.3;
+    }
+
+    .airport-badges {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .badge {
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .badge-faa {
+        background: rgba(99, 102, 241, 0.12);
+        color: var(--primary);
+    }
+
+    .badge-icao {
+        background: rgba(16, 185, 129, 0.12);
+        color: var(--secondary);
+    }
+
+    /* ── Properties Grid ────────────────────────── */
+    .section-title {
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: var(--text-muted);
+        margin-bottom: 1rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .section-title svg {
+        width: 16px;
+        height: 16px;
+    }
+
+    .properties-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .property-card {
+        background: rgba(2, 6, 23, 0.02);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 0.875rem 1rem;
+    }
+
+    .property-card .prop-label {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        color: var(--text-muted);
+        margin-bottom: 4px;
+        display: block;
+        font-weight: 600;
+    }
+
+    .property-card .prop-value {
+        font-size: 0.95rem;
+        color: var(--text-main);
+        font-weight: 500;
+        word-break: break-all;
+    }
+
+    /* ── Geometry Section ───────────────────────── */
+    .geometry-box {
+        background: linear-gradient(145deg, rgba(99, 102, 241, 0.06), rgba(2, 6, 23, 0.02));
+        border: 1px solid rgba(99, 102, 241, 0.2);
+        border-radius: 12px;
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .geometry-type {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        background: rgba(99, 102, 241, 0.12);
+        border-radius: 6px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--primary);
+        margin-bottom: 1rem;
+    }
+
+    .coordinates-display {
+        background: rgba(255, 255, 255, 0.6);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem;
+        font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+        font-size: 0.85rem;
+        line-height: 1.6;
+        color: var(--text-main);
+    }
+
+    /* ── Responsive ──────────────────────────────── */
+    @media (max-width: 900px) {
+        .results-container {
+            flex-direction: column;
+        }
+
+        .results-sidebar {
+            width: 100%;
+            max-height: 350px;
+        }
+
+        .search-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* ── Empty State ─────────────────────────────── */
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: var(--text-muted);
+    }
+
+    .empty-state svg {
+        width: 48px;
+        height: 48px;
+        margin-bottom: 1rem;
+        opacity: 0.4;
+    }
+
+    .no-results {
+        text-align: center;
+        padding: 2rem;
+        color: var(--text-muted);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="search-container">
+    <!-- Search Form Panel -->
+    <div class="search-form-panel">
+        <div class="search-form-header">
+            <h2>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                Search Airports
+            </h2>
+        </div>
+
+        <form method="get" action="{% url 'converter:airport_search' %}">
+            <div class="search-grid">
+                <div class="search-field">
+                    <label for="id">ID</label>
+                    <input type="text" id="id" name="id" value="{{ search_params.id }}" placeholder="e.g. 3550">
+                </div>
+                <div class="search-field">
+                    <label for="name">Airport Name</label>
+                    <input type="text" id="name" name="name" value="{{ search_params.name }}"
+                        placeholder="e.g. George Bush Intercontinental">
+                </div>
+                <div class="search-field">
+                    <label for="city">City</label>
+                    <input type="text" id="city" name="city" value="{{ search_params.city }}"
+                        placeholder="e.g. Houston">
+                </div>
+                <div class="search-field">
+                    <label for="country">Country</label>
+                    <input type="text" id="country" name="country" value="{{ search_params.country }}"
+                        placeholder="e.g. United States">
+                </div>
+                <div class="search-field">
+                    <label for="faa">FAA Code</label>
+                    <input type="text" id="faa" name="faa" value="{{ search_params.faa }}" placeholder="e.g. IAH">
+                </div>
+                <div class="search-field">
+                    <label for="icao">ICAO Code</label>
+                    <input type="text" id="icao" name="icao" value="{{ search_params.icao }}" placeholder="e.g. KIAH">
+                </div>
+            </div>
+
+            <div class="search-actions">
+                <button type="submit" class="btn-search">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round" style="width: 18px; height: 18px;">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    Search
+                </button>
+                <button type="submit" class="btn-export" formaction="{% url 'converter:export_airports' %}"
+                    formtarget="_blank">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round" style="width: 18px; height: 18px;">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    Export
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Results Section -->
+    <div class="results-container">
+        <!-- Results Sidebar -->
+        <aside class="results-sidebar">
+            <div class="results-header">
+                <h3>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <line x1="8" y1="6" x2="21" y2="6"></line>
+                        <line x1="8" y1="12" x2="21" y2="12"></line>
+                        <line x1="8" y1="18" x2="21" y2="18"></line>
+                        <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                        <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                        <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                    </svg>
+                    Search Results
+                </h3>
+                <div class="results-count">{{ result_count }} airport(s) found</div>
+            </div>
+
+            <div class="results-list">
+                {% if sidebar_features %}
+                {% for feature in sidebar_features %}
+                <div class="result-item {% if selected_airport.index == forloop.counter0 %}active{% endif %}"
+                    onclick="showAirport({{ forloop.counter0 }})">
+                    <div class="result-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path
+                                d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z">
+                            </path>
+                            <path d="M14.05 2a9 9 0 0 1 8 8"></path>
+                            <path d="M14.05 6a5 5 0 0 1 4 4"></path>
+                        </svg>
+                    </div>
+                    <div class="result-info">
+                        <div class="result-name">{{ feature.properties.name }}</div>
+                        <div class="result-meta">
+                            {% if feature.properties.faa %}
+                            <span class="result-code">{{ feature.properties.faa }}</span>
+                            {% endif %}
+                            <span>{{ feature.properties.city }}, {{ feature.properties.country }}</span>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+                {% elif has_search %}
+                <div class="no-results">
+                    <p>No airports found. Please search or check data.</p>
+                </div>
+                {% else %}
+                <div class="no-results">
+                    <p>Enter airport details and click Search.</p>
+                </div>
+                {% endif %}
+            </div>
+        </aside>
+
+        <!-- Detail View -->
+        <main class="detail-view">
+            {% if features %}
+                {% for airport in features %}
+                <div class="airport-detail-block" {% if not forloop.last %}style="margin-bottom: 3rem; padding-bottom: 2rem; border-bottom: 2px dashed var(--border);"{% endif %}>
+                    <div class="detail-header">
+                        <h2>{{ airport.properties.name }}</h2>
+                        <div class="airport-badges">
+                            {% if airport.properties.faa %}
+                            <span class="badge badge-faa">FAA: {{ airport.properties.faa }}</span>
+                            {% endif %}
+                            {% if airport.properties.icao %}
+                            <span class="badge badge-icao">ICAO: {{ airport.properties.icao }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Properties Section -->
+                    <div class="section-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="3" y1="9" x2="21" y2="9"></line>
+                            <line x1="9" y1="21" x2="9" y2="9"></line>
+                        </svg>
+                        Airport Details
+                    </div>
+                    <div class="properties-grid">
+                        <div class="property-card">
+                            <span class="prop-label">ID</span>
+                            <span class="prop-value">{{ airport.properties.id }}</span>
+                        </div>
+                        <div class="property-card">
+                            <span class="prop-label">City</span>
+                            <span class="prop-value">{{ airport.properties.city }}</span>
+                        </div>
+                        <div class="property-card">
+                            <span class="prop-label">Country</span>
+                            <span class="prop-value">{{ airport.properties.country }}</span>
+                        </div>
+                        <div class="property-card">
+                            <span class="prop-label">Altitude</span>
+                            <span class="prop-value">{{ airport.properties.alt }} ft</span>
+                        </div>
+                        <div class="property-card">
+                            <span class="prop-label">Timezone Offset</span>
+                            <span class="prop-value">{{ airport.properties.tz_offset|default:"0" }} hrs</span>
+                        </div>
+                        <div class="property-card">
+                            <span class="prop-label">DST</span>
+                            <span class="prop-value">{{ airport.properties.dst }}</span>
+                        </div>
+                        <div class="property-card">
+                            <span class="prop-label">Timezone</span>
+                            <span class="prop-value">{{ airport.properties.tz }}</span>
+                        </div>
+                    </div>
+
+                    <!-- Geometry Section -->
+                    {% if airport.geometry %}
+                    <div class="section-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="2" y1="12" x2="22" y2="12"></line>
+                            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                        </svg>
+                        Location
+                    </div>
+                    <div class="geometry-box">
+                        <div class="geometry-type">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round" style="width: 14px; height: 14px;">
+                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                                <circle cx="12" cy="10" r="3"></circle>
+                            </svg>
+                            {{ airport.geometry.type }}
+                        </div>
+                        <div class="coordinates-display">
+                            <strong>Coordinates:</strong> {{ airport.geometry.coordinates.0 }}, {{ airport.geometry.coordinates.1 }}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+            <div class="empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                </svg>
+                <p>Enter search criteria to find airports.</p>
+            </div>
+            {% endif %}
+        </main>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    function showAirport(index) {
+        // Build URL with current search params and selected index
+        const url = new URL(window.location.href);
+        url.searchParams.set('selected', index);
+        window.location.href = url.toString();
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends 'converter/base.html' %}
+{% block title %}Validation Results — Operator Panel{% endblock %}
+{% block content %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h1 class="card-title" style="margin: 0; text-align: left;">File Format Validation</h1>
+        <a href="{% url 'converter:operator_file_detail' file.id %}" class="btn-secondary" style="margin: 0;">Back to File</a>
+    </div>
+
+    <div style="margin-bottom: 20px;">
+        <h2>{{ file.original_file_name }}</h2>
+        <p class="text-muted">Review severity-graded issues discovered in formatting, file structure, or spatial projections.</p>
+    </div>
+
+    <div>
+        {% for issue in issues %}
+            <div style="margin-bottom: 15px; padding: 15px; border-radius: 8px; display: flex; gap: 15px; align-items: flex-start;
+                {% if issue.severity == 'error' %}background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.18); color: #dc3545;
+                {% elif issue.severity == 'warning' %}background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.18); color: #b45309;
+                {% else %}background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.18); color: #065f46;{% endif %}">
+                
+                <span style="font-size: 1.5em;">
+                    {% if issue.severity == 'error' %}❌
+                    {% elif issue.severity == 'warning' %}⚠️
+                    {% else %}✅{% endif %}
+                </span>
+                <div>
+                    <h4 style="margin: 0 0 5px 0; text-transform: uppercase; font-size: 0.85em; letter-spacing: 0.5px;">{{ issue.code }}</h4>
+                    <p style="margin: 0; font-size: 0.95em; line-height: 1.4;">{{ issue.message }}</p>
+                    
+                    {% if issue.code == 'MISSING_PRJ' or issue.code == 'MISSING_EPSG' %}
+                        <a href="{% url 'converter:assign_crs' file.id %}" class="btn-secondary" style="margin-top: 10px; font-size: 0.85em; padding: 4px 10px;">Assign EPSG CRS Manually</a>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

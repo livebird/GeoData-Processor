@@ -1,0 +1,33 @@
+{% extends 'converter/base.html' %}
+{% block title %}Workflows — Operator Panel{% endblock %}
+{% block content %}
+<div class="card">
+    <h1 class="card-title">Geospatial Processing Catalog</h1>
+    <p class="card-subtitle">Select a preconfigured workflow model to execute coordinate transformations or export geospatial vectors/rasters.</p>
+
+    <div style="display: grid; grid-template-columns: 1fr; gap: 20px;">
+        {% for workflow in workflows %}
+            <div style="padding: 20px; border-radius: 12px; border: 1px solid var(--border); background: white; display: flex; justify-content: space-between; align-items: center; gap: 20px;">
+                <div>
+                    <h3 style="margin: 0 0 5px 0; font-size: 1.2em;">{{ workflow.name }}</h3>
+                    <p style="margin: 0 0 10px 0; color: var(--text-muted); font-size: 0.95em;">{{ workflow.description }}</p>
+                    <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; font-weight: bold; background: rgba(0,0,0,0.05); color: var(--text-muted);">
+                        Destination Type: {{ workflow.get_destination_type_display }}
+                    </span>
+                </div>
+                <div>
+                    {% if file_id %}
+                        <a href="{% url 'converter:workflow_run' workflow.code %}?file={{ file_id }}" class="btn-primary" style="margin: 0; white-space: nowrap;">Run Workflow</a>
+                    {% else %}
+                        <a href="{% url 'converter:file_list' %}" class="btn-secondary" style="margin: 0; white-space: nowrap;">Select File First</a>
+                    {% endif %}
+                </div>
+            </div>
+        {% empty %}
+            <div style="padding: 30px; text-align: center; color: var(--text-muted); background: white; border-radius: 12px; border: 1px solid var(--border);">
+                No active workflows are available. Restart the application or contact an administrator.
+            </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

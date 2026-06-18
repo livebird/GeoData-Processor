@@ -1,0 +1,73 @@
+{% extends 'converter/base.html' %}
+{% block title %}Jobs — Operator Panel{% endblock %}
+{% block content %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h1 class="card-title" style="margin: 0; text-align: left;">Operator Jobs</h1>
+        <div>
+            <a href="?status=" class="btn-secondary {% if not status_filter %}active{% endif %}" style="font-size: 0.8em; padding: 4px 8px;">All</a>
+            <a href="?status=pending" class="btn-secondary {% if status_filter == 'pending' %}active{% endif %}" style="font-size: 0.8em; padding: 4px 8px;">Pending</a>
+            <a href="?status=processing" class="btn-secondary {% if status_filter == 'processing' %}active{% endif %}" style="font-size: 0.8em; padding: 4px 8px;">Processing</a>
+            <a href="?status=completed" class="btn-secondary {% if status_filter == 'completed' %}active{% endif %}" style="font-size: 0.8em; padding: 4px 8px;">Completed</a>
+        </div>
+    </div>
+
+    <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+            <thead>
+                <tr style="border-bottom: 2px solid var(--border); font-weight: bold; color: var(--text-muted);">
+                    <th style="padding: 10px;">Job ID</th>
+                    <th style="padding: 10px;">Workflow</th>
+                    <th style="padding: 10px;">Conversion</th>
+                    <th style="padding: 10px;">Status</th>
+                    <th style="padding: 10px;">Progress</th>
+                    <th style="padding: 10px;">Started At</th>
+                    <th style="padding: 10px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for job in jobs %}
+                    <tr style="border-bottom: 1px solid var(--border);">
+                        <td style="padding: 10px; font-weight: 500;"><a href="{% url 'converter:operator_job_detail' job.id %}">{{ job.id|stringformat:".8s" }}...</a></td>
+                        <td style="padding: 10px;">{{ job.workflow_code }}</td>
+                        <td style="padding: 10px; font-size: 0.9em;">
+                            {% if job.parameters.input_format %}
+                                {{ job.parameters.input_format }} → {{ job.parameters.output_format }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                        <td style="padding: 10px;">
+                            <span style="padding: 2px 8px; border-radius: 4px; font-size: 0.85em; font-weight: bold; color: white; background:
+                                {% if job.status == 'completed' %}#10b981
+                                {% elif job.status == 'failed' %}#ef4444
+                                {% elif job.status == 'processing' %}#3b82f6
+                                {% else %}#f59e0b{% endif %};">
+                                {{ job.status|upper }}
+                            </span>
+                        </td>
+                        <td style="padding: 10px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <div style="flex: 1; height: 6px; background: rgba(0,0,0,0.1); border-radius: 3px; overflow: hidden; width: 60px;">
+                                    <div style="height: 100%; width: {{ job.progress_percent }}%; background: var(--primary);"></div>
+                                </div>
+                                <span>{{ job.progress_percent }}%</span>
+                            </div>
+                        </td>
+                        <td style="padding: 10px; font-size: 0.85em; color: var(--text-muted);">{{ job.created_at }}</td>
+                        <td style="padding: 10px;">
+                            <a href="{% url 'converter:job_logs_view' job.id %}" class="btn-secondary" style="font-size: 0.8em; padding: 4px 8px; margin: 0;">Logs</a>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="7" style="padding: 20px; text-align: center; color: var(--text-muted);">
+                            No processing jobs yet. Convert a file on the Converter page or run a workflow from the Workflows catalog.
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,50 @@
+{% extends "converter/base.html" %}
+
+{% block title %}Job {{ job.task_id }} — Admin{% endblock %}
+
+{% block extra_styles %}
+<style>
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+  .meta { display: grid; gap: 8px; margin-top: 1rem; color: var(--text-muted); }
+  .actions { display: flex; gap: 10px; justify-content: center; margin-top: 1.25rem; flex-wrap: wrap; }
+  .btn-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.7rem 1.25rem;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    text-decoration: none;
+    font-weight: 700;
+    color: var(--text-main);
+    background: rgba(255,255,255,0.85);
+  }
+  .btn-link:hover { background: var(--surface-hover); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-title">Conversion Job</div>
+  <div class="card-subtitle mono">{{ job.task_id }}</div>
+
+  <div class="meta">
+    <div><strong>Status:</strong> {{ job.get_status_display }}</div>
+    <div><strong>Created:</strong> {{ job.created_at }}</div>
+    <div><strong>Finished:</strong> {{ job.finished_at|default:"—" }}</div>
+    <div><strong>Formats:</strong> {{ job.input_format|default:"—" }} → {{ job.output_format|default:"—" }}</div>
+    <div><strong>CRS:</strong> {{ job.crs|default:"—" }}</div>
+    <div><strong>Counts:</strong> uploaded {{ job.upload_files_count }} · output {{ job.output_files_count }}</div>
+    <div><strong>Download URL:</strong> {% if job.download_url %}<a href="{{ job.download_url }}">{{ job.download_url }}</a>{% else %}—{% endif %}</div>
+    <div><strong>IP:</strong> {{ job.ip_address|default:"—" }}</div>
+    <div><strong>User agent:</strong> {{ job.user_agent|default:"—" }}</div>
+    {% if job.error_message %}<div><strong>Error:</strong> {{ job.error_message }}</div>{% endif %}
+  </div>
+
+  <div class="actions">
+    <a class="btn-secondary" href="{% url 'converter:admin_job_edit' job.task_id %}">Edit</a>
+    <a class="btn-link" href="{% url 'converter:admin_panel' %}?tab=jobs">Back</a>
+  </div>
+</div>
+{% endblock %}
+

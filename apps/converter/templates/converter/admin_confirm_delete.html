@@ -1,0 +1,63 @@
+{% extends "converter/base.html" %}
+
+{% block title %}{{ title }} — Admin{% endblock %}
+
+{% block extra_styles %}
+<style>
+  .danger-zone {
+    border: 1px solid rgba(239,68,68,0.22);
+    background: rgba(239,68,68,0.06);
+    border-radius: 14px;
+    padding: 1rem;
+    margin-top: 1rem;
+  }
+  .actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 1.25rem;
+    flex-wrap: wrap;
+  }
+  .btn-danger {
+    background: #ef4444;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-weight: 800;
+    padding: 0.75rem 1.2rem;
+    cursor: pointer;
+  }
+  .btn-danger:hover { filter: brightness(0.95); }
+  .btn-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem 1.2rem;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    text-decoration: none;
+    font-weight: 700;
+    color: var(--text-main);
+    background: rgba(255,255,255,0.85);
+  }
+  .btn-link:hover { background: var(--surface-hover); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-title">{{ title }}</div>
+  <div class="card-subtitle">This cannot be undone</div>
+
+  <div class="danger-zone">
+    <div><strong>Delete:</strong> {{ object_name }}</div>
+  </div>
+
+  <form method="post" class="actions">
+    {% csrf_token %}
+    <button type="submit" class="btn-danger">Yes, delete</button>
+    <a class="btn-link" href="{% url 'converter:admin_panel' %}">Cancel</a>
+  </form>
+</div>
+{% endblock %}
+

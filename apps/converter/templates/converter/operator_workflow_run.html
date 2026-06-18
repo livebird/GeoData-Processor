@@ -1,0 +1,39 @@
+{% extends 'converter/base.html' %}
+{% block title %}Run Workflow — Operator Panel{% endblock %}
+{% block content %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h1 class="card-title" style="margin: 0; text-align: left;">Run {{ workflow.name }}</h1>
+        <a href="{% url 'converter:workflow_catalog' %}" class="btn-secondary" style="margin: 0;">Back to Catalog</a>
+    </div>
+
+    <div style="margin-bottom: 25px; padding: 15px; border-radius: 8px; background: rgba(0,0,0,0.02); border: 1px solid var(--border);">
+        <p><strong>Workflow:</strong> {{ workflow.description }}</p>
+        {% if file %}
+            <p style="margin-top: 5px;"><strong>Input Target File:</strong> {{ file.original_file_name }}</p>
+        {% endif %}
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+        
+        <!-- Parameter Schema Rendering -->
+        {% for key, field_def in workflow.parameters_schema.items %}
+            <div class="form-group">
+                <label for="{{ key }}">{{ field_def.title|default:key }}</label>
+                {% if field_def.type == 'string' %}
+                    <input type="text" name="{{ key }}" id="{{ key }}" placeholder="{{ field_def.description|default:'' }}" required>
+                {% elif field_def.type == 'integer' %}
+                    <input type="number" name="{{ key }}" id="{{ key }}" placeholder="{{ field_def.description|default:'' }}" required>
+                {% else %}
+                    <input type="text" name="{{ key }}" id="{{ key }}" placeholder="{{ field_def.description|default:'' }}" required>
+                {% endif %}
+            </div>
+        {% empty %}
+            <p style="margin-bottom: 20px; color: var(--text-muted);">No runtime parameters configured for this workflow model.</p>
+        {% endfor %}
+        
+        <button type="submit" class="btn-primary">Execute Workflow Job</button>
+    </form>
+</div>
+{% endblock %}

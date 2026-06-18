@@ -1,0 +1,81 @@
+{% extends "converter/base.html" %}
+
+{% block title %}{{ title }} — Admin{% endblock %}
+
+{% block extra_styles %}
+<style>
+  .form-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 1.25rem;
+    flex-wrap: wrap;
+  }
+  .btn-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.7rem 1.25rem;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    text-decoration: none;
+    font-weight: 700;
+    color: var(--text-main);
+    background: rgba(255,255,255,0.85);
+  }
+  .btn-link:hover { background: var(--surface-hover); }
+  textarea, input[type="text"], input[type="number"], input[type="datetime-local"], select {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid var(--border);
+    color: var(--text-main);
+    font-family: 'Inter', sans-serif;
+    font-size: 1rem;
+    transition: all 0.2s ease;
+  }
+  textarea:focus, input:focus, select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-glow);
+  }
+  .field { margin-bottom: 1rem; }
+  .help { color: var(--text-muted); font-size: 0.85rem; margin-top: 6px; }
+  .errors { margin: 0.5rem 0 1rem; color: #b91c1c; font-weight: 700; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-title">{{ title }}</div>
+  <div class="card-subtitle">Update fields and save</div>
+
+  <form method="post">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+      <div class="errors">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    {% for field in form %}
+      <div class="field">
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% if field.errors %}
+          <div class="errors">{{ field.errors }}</div>
+        {% endif %}
+        {% if field.help_text %}
+          <div class="help">{{ field.help_text }}</div>
+        {% endif %}
+      </div>
+    {% endfor %}
+
+    <div class="form-actions">
+      <button class="btn-secondary" type="submit">Save</button>
+      <a class="btn-link" href="{% url 'converter:admin_panel' %}">Back</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
+

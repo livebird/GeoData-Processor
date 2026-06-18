@@ -1,0 +1,470 @@
+{% extends "converter/base.html" %}
+
+{% block title %}Location Export - GIS Batch Converter{% endblock %}
+
+{% block extra_styles %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.14.2/dist/leaflet-geoman.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet-fullscreen@2.4.5/Control.FullScreen.css" />
+<style>
+    .page-container { max-width: 1120px; }
+
+    .location-layout {
+        display: grid;
+        grid-template-columns: minmax(320px, 380px) 1fr;
+        gap: 1rem;
+        align-items: stretch;
+    }
+
+    .tool-panel, .map-panel {
+        background: rgba(255,255,255,0.94);
+        border: 1px solid rgba(2,6,23,0.08);
+        border-radius: 12px;
+        box-shadow: 0 18px 40px -22px rgba(2,6,23,0.22);
+    }
+    .tool-panel { padding: 1.25rem; overflow-y: auto; max-height: 800px; }
+    .map-panel  { min-height: 660px; overflow: hidden; }
+
+    .page-title { margin-bottom: 1rem; }
+    .page-title h1 { font-size: 1.45rem; line-height: 1.2; color: var(--text-main); }
+    .page-title p  { margin-top: 0.35rem; color: var(--text-muted); font-size: 0.9rem; }
+
+    .btn-primary { width: 100%; margin-top: 1rem; }
+
+    #map { width: 100%; height: 100%; min-height: 660px; }
+
+    .status-box { display: none; margin-top: 1rem; border-radius: 10px; padding: 0.9rem; font-size: 0.92rem; }
+    .status-box.success { display: block; background: rgba(16,185,129,0.1); color: var(--secondary); }
+    .status-box.error   { display: block; background: rgba(239,68,68,0.1);  color: var(--danger); }
+
+    .hint { color: var(--text-muted); font-size: 0.82rem; line-height: 1.45; margin-top: -0.25rem; margin-bottom: 1rem; }
+
+    .form-group { margin-bottom: 1.25rem; }
+    label { display: block; font-weight: 600; margin-bottom: 0.4rem; font-size: 0.9rem; color: var(--text-main); }
+    input[type="file"], select { width: 100%; padding: 0.6rem; border: 1px solid var(--border); border-radius: 6px; background: #fff; }
+
+    .conversion-badge {
+        background: linear-gradient(135deg, rgba(99,102,241,0.12), rgba(192,132,252,0.10));
+        border: 1px solid rgba(99,102,241,0.25);
+        border-radius: 10px;
+        padding: 0.85rem 1rem;
+        margin-bottom: 1.25rem;
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+    }
+    .conversion-badge svg { flex-shrink: 0; color: var(--primary); }
+    .conversion-badge .badge-text { font-size: 0.88rem; line-height: 1.4; }
+    .conversion-badge .badge-text strong { display: block; font-size: 0.92rem; margin-bottom: 2px; }
+
+    /* Details panel */
+    .location-details {
+        margin-top: 1.5rem;
+        padding: 1rem;
+        background: linear-gradient(135deg, rgba(99,102,241,0.06), rgba(139,92,246,0.06));
+        border: 1px solid rgba(99,102,241,0.15);
+        border-radius: 8px;
+        font-size: 0.85rem;
+    }
+
+    .location-details h4 {
+        margin: 0 0 0.6rem 0;
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--text-main);
+    }
+
+    .detail-item {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.4rem;
+        margin-bottom: 0.5rem;
+        padding: 0.4rem 0;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    }
+
+    .detail-item:last-child {
+        border-bottom: none;
+    }
+
+    .detail-label {
+        font-weight: 600;
+        color: var(--text-muted);
+    }
+
+    .detail-value {
+        color: var(--text-main);
+        word-break: break-word;
+    }
+
+    @media (max-width: 980px) {
+        .location-layout { grid-template-columns: 1fr; }
+        .map-panel, #map  { min-height: 460px; }
+        .tool-panel { max-height: none; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <h1>Location Export</h1>
+    <p>Use Send Export from the Converter, choose a place on the map, and download the converted ZIP from that exported place.</p>
+</div>
+
+<div class="location-layout">
+    <section class="tool-panel">
+        <form id="location-export-form" enctype="multipart/form-data">
+            {% csrf_token %}
+            <input type="hidden" name="conversion_task_id" id="conversion_task_id">
+
+            <!-- Shown when using converted file from Converter -->
+            <div id="conversion-info" style="display:none;">
+                <div class="conversion-badge">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="16 3 21 3 21 8"></polyline>
+                        <line x1="4" y1="20" x2="21" y2="3"></line>
+                        <polyline points="21 16 21 21 16 21"></polyline>
+                        <line x1="15" y1="15" x2="21" y2="21"></line>
+                        <line x1="4" y1="4" x2="9" y2="9"></line>
+                    </svg>
+                    <div class="badge-text">
+                        <strong>Converted ZIP ready</strong>
+                        Click a place on the map, then click Send Export.
+                    </div>
+                </div>
+            </div>
+
+            <div id="conversion-required" class="status-box error" style="display:none;">
+                Convert a file first, then click Send Export from the Converter result.
+            </div>
+
+            <div class="form-group">
+                <label>Export Location</label>
+                <div class="hint" style="margin-top:0;">
+                    Search for a place or tap/click the map. You can also draw a rectangle or polygon.
+                </div>
+            </div>
+
+            <input type="hidden" name="geojson_geom" id="geojson_geom">
+            <button type="submit" class="btn-primary" id="export-btn">Send Export</button>
+
+            <!-- Location Details Panel -->
+            <div id="location-details" class="location-details" style="display:none;">
+                <h4>📍 Location Details</h4>
+                <div class="detail-item">
+                    <span class="detail-label">Coordinates:</span>
+                    <span class="detail-value" id="detail-coords">--</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Area:</span>
+                    <span class="detail-value" id="detail-area">--</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Zoom Level:</span>
+                    <span class="detail-value" id="detail-zoom">--</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Type:</span>
+                    <span class="detail-value" id="detail-type">Point/Shape</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Features:</span>
+                    <span class="detail-value" id="detail-features">--</span>
+                </div>
+            </div>
+        </form>
+
+        <div id="location-result" class="status-box"></div>
+    </section>
+
+    <section class="map-panel" aria-label="Location picker map">
+        <div id="map"></div>
+    </section>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.14.2/dist/leaflet-geoman.min.js"></script>
+<script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+<script>
+    // Initialize map
+    const map = L.map('map').setView([20.5937, 78.9629], 5);
+    
+    // Base layers
+    const osmTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors',
+        name: 'streets'
+    }).addTo(map);
+
+    // Satellite view (optional)
+    const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 18,
+        attribution: 'Tiles &copy; Esri',
+        name: 'satellite'
+    });
+
+    // Layer objects for toggle control
+    const layers = {
+        streets: { layer: osmTileLayer, visible: true },
+        buildings: { layer: null, visible: true },
+        water: { layer: null, visible: true },
+        parks: { layer: null, visible: true },
+        transport: { layer: null, visible: true },
+        poi: { layer: null, visible: true }
+    };
+
+    // Create overlay layers with high-quality tile sources
+    function createBuildingsLayer() {
+        return L.tileLayer('https://tiles.openstreetmap.se/hydda/full/{z}/{x}/{y}.png', {
+            maxZoom: 18,
+            attribution: 'OpenStreetMap contributors',
+            opacity: 0.85
+        });
+    }
+
+    function createWaterLayer() {
+        return L.tileLayer('https://tile.openstreetmap.se/watercolor/{z}/{x}/{y}.png', {
+            maxZoom: 18,
+            attribution: 'OpenStreetMap contributors',
+            opacity: 0.7
+        });
+    }
+
+    function createParksLayer() {
+        return L.tileLayer('https://{s}.tile.openstreetmap.de/tiles/osmde/{z}/{x}/{y}.png', {
+            maxZoom: 18,
+            attribution: 'OpenStreetMap contributors',
+            opacity: 0.75
+        });
+    }
+
+    function createTransportLayer() {
+        return L.tileLayer('https://tiles.opentransitmap.org/routing/{z}/{x}/{y}.png', {
+            maxZoom: 18,
+            attribution: 'OpenStreetMap contributors',
+            opacity: 0.7
+        });
+    }
+
+    function createPOILayer() {
+        return L.tileLayer('https://{s}.tile.openstreetmap.se/historic/{z}/{x}/{y}.png', {
+            maxZoom: 18,
+            attribution: 'OpenStreetMap contributors',
+            opacity: 0.6
+        });
+    }
+
+    // Initialize overlay layers
+    layers.buildings.layer = createBuildingsLayer();
+    layers.water.layer = createWaterLayer();
+    layers.parks.layer = createParksLayer();
+    layers.transport.layer = createTransportLayer();
+    layers.poi.layer = createPOILayer();
+
+    // Add all initially visible layers to map by default
+    if (layers.buildings.visible) layers.buildings.layer.addTo(map);
+    if (layers.water.visible) layers.water.layer.addTo(map);
+    if (layers.parks.visible) layers.parks.layer.addTo(map);
+    if (layers.transport.visible) layers.transport.layer.addTo(map);
+    if (layers.poi.visible) layers.poi.layer.addTo(map);
+
+    // Geocoder (location search)
+    L.Control.geocoder({ defaultMarkGeocode: false })
+    .on('markgeocode', function(e) {
+        var bbox = e.geocode.bbox;
+        var poly = L.polygon([
+            bbox.getSouthEast(), bbox.getNorthEast(),
+            bbox.getNorthWest(), bbox.getSouthWest()
+        ]);
+        map.fitBounds(poly.getBounds());
+        setCurrentLayer(L.marker(poly.getBounds().getCenter()));
+    }).addTo(map);
+
+    // Geoman drawing controls
+    map.pm.addControls({
+        position: 'topleft',
+        drawMarker: false, drawCircleMarker: false, drawPolyline: false,
+        drawRectangle: true, drawPolygon: true,
+        drawCircle: false, drawText: false,
+        editMode: true, dragMode: true, cutPolygon: false, removalMode: true,
+    });
+
+    let currentLayer = null;
+    let exportMarker = null;
+
+    function setCurrentLayer(layer) {
+        if (currentLayer) map.removeLayer(currentLayer);
+        currentLayer = layer;
+        currentLayer.addTo(map);
+        if (currentLayer.pm) {
+            currentLayer.on('pm:edit', () => updateGeoJSON());
+        }
+        updateGeoJSON();
+        updateLocationDetails();
+    }
+
+    function updateLocationDetails() {
+        const detailsDiv = document.getElementById('location-details');
+        if (!currentLayer) {
+            detailsDiv.style.display = 'none';
+            return;
+        }
+
+        detailsDiv.style.display = 'block';
+        const center = layerCenter(currentLayer);
+        const zoom = map.getZoom();
+
+        // Update coordinates
+        document.getElementById('detail-coords').textContent = 
+            center.lat.toFixed(6) + ', ' + center.lng.toFixed(6);
+
+        // Update zoom level
+        document.getElementById('detail-zoom').textContent = zoom;
+
+        // Calculate area for polygons/rectangles
+        if (currentLayer.getLatLngs && currentLayer.getLatLngs().length > 0) {
+            const latlngs = currentLayer.getLatLngs();
+            let areaMeters = 0;
+            try {
+                // Simple area calculation (approximate)
+                const bounds = currentLayer.getBounds();
+                const latDiff = bounds.getNorth() - bounds.getSouth();
+                const lngDiff = bounds.getEast() - bounds.getWest();
+                
+                // Rough conversion to meters (varies by latitude)
+                const metersPerDegreeLat = 111320;
+                const metersPerDegreeLng = 111320 * Math.cos(center.lat * Math.PI / 180);
+                
+                const heightM = latDiff * metersPerDegreeLat;
+                const widthM = lngDiff * metersPerDegreeLng;
+                areaMeters = heightM * widthM;
+                
+                const areaKm2 = (areaMeters / 1000000).toFixed(2);
+                document.getElementById('detail-area').textContent = areaKm2 + ' km²';
+            } catch (e) {
+                document.getElementById('detail-area').textContent = 'N/A';
+            }
+
+            document.getElementById('detail-type').textContent = 'Polygon';
+            
+            // Estimate features based on zoom and area
+            let featureCount = 'Multiple';
+            if (zoom > 17) featureCount = '~50+ roads & buildings';
+            else if (zoom > 15) featureCount = '~20+ roads & buildings';
+            else if (zoom > 13) featureCount = '~5+ districts';
+            else if (zoom > 11) featureCount = '~Multiple cities';
+            document.getElementById('detail-features').textContent = featureCount;
+        } else {
+            document.getElementById('detail-area').textContent = 'Point';
+            document.getElementById('detail-type').textContent = 'Point';
+            document.getElementById('detail-features').textContent = 'Single location';
+        }
+    }
+
+    map.on('pm:create', (e) => {
+        setCurrentLayer(e.layer);
+    });
+
+    map.on('pm:remove', (e) => {
+        if (e.layer === currentLayer) {
+            currentLayer = null;
+            document.getElementById('geojson_geom').value = '';
+            document.getElementById('location-details').style.display = 'none';
+        }
+    });
+
+    map.on('zoom', updateLocationDetails);
+
+    function updateGeoJSON() {
+        if (currentLayer) {
+            document.getElementById('geojson_geom').value = JSON.stringify(currentLayer.toGeoJSON().geometry);
+        }
+    }
+
+    function layerCenter(layer) {
+        if (layer.getLatLng) return layer.getLatLng();
+        if (layer.getBounds) return layer.getBounds().getCenter();
+        return map.getCenter();
+    }
+
+    map.on('click', (e) => {
+        if (map.pm && map.pm.globalDrawModeEnabled && map.pm.globalDrawModeEnabled()) return;
+        setCurrentLayer(L.marker(e.latlng));
+    });
+
+    // If coming from Converter sidebar with a conversion_task_id
+    const urlParams = new URLSearchParams(window.location.search);
+    const convTaskId = urlParams.get('conversion_task_id');
+    if (convTaskId) {
+        document.getElementById('conversion_task_id').value = convTaskId;
+        document.getElementById('conversion-info').style.display = 'block';
+    } else {
+        document.getElementById('conversion-required').style.display = 'block';
+        document.getElementById('export-btn').disabled = true;
+    }
+
+    const resultBox = document.getElementById('location-result');
+    const exportBtn = document.getElementById('export-btn');
+
+    document.getElementById('location-export-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        resultBox.style.display = 'none';
+
+        const hasConversion = !!document.getElementById('conversion_task_id').value;
+
+        if (!hasConversion) {
+            resultBox.className = 'status-box error';
+            resultBox.textContent = 'Please convert a file first, then use Send Export from the Converter.';
+            resultBox.style.display = 'block';
+            return;
+        }
+
+        if (!document.getElementById('geojson_geom').value) {
+            resultBox.className = 'status-box error';
+            resultBox.textContent = 'Please choose a place on the map.';
+            resultBox.style.display = 'block';
+            return;
+        }
+
+        exportBtn.disabled = true;
+        exportBtn.textContent = 'Exporting...';
+
+        try {
+            const response = await fetch('{% url "converter:location_export" %}', {
+                method: 'POST',
+                body: new FormData(event.target),
+                headers: { 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value }
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Location export failed.');
+
+            resultBox.className = 'status-box success';
+            resultBox.innerHTML = `
+                ✓ Converted ZIP placed at the selected location.
+                <br><a href="${data.download_url}" class="btn-secondary" style="margin-top:0.75rem; display:inline-block;">📥 Download ZIP</a>
+            `;
+            resultBox.style.display = 'block';
+
+            const markerLocation = currentLayer ? layerCenter(currentLayer) : map.getCenter();
+            if (exportMarker) map.removeLayer(exportMarker);
+            exportMarker = L.marker(markerLocation, {
+                icon: L.icon({
+                    iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-green.png',
+                    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png'
+                })
+            }).addTo(map);
+            exportMarker.bindPopup(`<strong>📍 Exported File</strong><br><a href="${data.download_url}">Download ZIP</a>`).openPopup();
+        } catch (error) {
+            resultBox.className = 'status-box error';
+            resultBox.textContent = error.message;
+            resultBox.style.display = 'block';
+        } finally {
+            exportBtn.disabled = false;
+            exportBtn.textContent = 'Send Export';
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="GDAL Converter - Premium GIS Data Processing Platform">
+    <title>GDAL Converter — GIS Processing Platform</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- Animated Background Orbs -->
+<div class="bg-animation">
+    <div class="orb"></div>
+    <div class="orb"></div>
+    <div class="orb"></div>
+</div>
+
+<!-- Toast Notification -->
+<div class="toast" id="toast">
+    <span id="toast-icon">✓</span>
+    <span id="toast-msg"></span>
+</div>
+
+<!-- ============ AUTH PAGE ============ -->
+<div id="auth-page">
+    <div class="auth-container">
+        <div class="auth-logo">
+            <div class="logo-icon">🌍</div>
+            <h1>GDAL Converter</h1>
+            <p>Premium GIS Data Processing Platform</p>
+        </div>
+        <div class="auth-card">
+            <!-- Tab Switcher -->
+            <div class="auth-tabs">
+                <button class="auth-tab active" id="tab-login" onclick="switchTab('login')">Sign In</button>
+                <button class="auth-tab" id="tab-signup" onclick="switchTab('signup')">Sign Up</button>
+            </div>
+
+            <div id="auth-error" class="auth-error"></div>
+
+            <!-- Login Form -->
+            <form id="login-form" onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label for="login-email">Email Address</label>
+                    <input type="email" id="login-email" placeholder="Enter your email" required>
+                    <span class="input-icon">📧</span>
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" placeholder="Enter your password" required>
+                    <span class="input-icon">🔒</span>
+                </div>
+                <button type="submit" class="btn-auth" id="btn-login">Sign In</button>
+                <div class="auth-footer">
+                    Don't have an account? <a onclick="switchTab('signup')">Create one</a>
+                </div>
+            </form>
+
+            <!-- Signup Form -->
+            <form id="signup-form" style="display:none" onsubmit="handleSignup(event)">
+                <div class="form-group">
+                    <label for="signup-name">Full Name</label>
+                    <input type="text" id="signup-name" placeholder="Enter your full name" required>
+                    <span class="input-icon">👤</span>
+                </div>
+                <div class="form-group">
+                    <label for="signup-email">Email Address</label>
+                    <input type="email" id="signup-email" placeholder="Enter your email" required>
+                    <span class="input-icon">📧</span>
+                </div>
+                <div class="form-group">
+                    <label for="signup-password">Password</label>
+                    <input type="password" id="signup-password" placeholder="Create a password" required minlength="6">
+                    <span class="input-icon">🔒</span>
+                </div>
+                <div class="form-group">
+                    <label for="signup-confirm">Confirm Password</label>
+                    <input type="password" id="signup-confirm" placeholder="Confirm your password" required>
+                    <span class="input-icon">🔒</span>
+                </div>
+                <button type="submit" class="btn-auth" id="btn-signup">Create Account</button>
+                <div class="auth-footer">
+                    Already have an account? <a onclick="switchTab('login')">Sign in</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ============ DASHBOARD PAGE ============ -->
+<div id="dashboard-page">
+    <div class="dashboard-layout">
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-sm">🌍</div>
+                <div>
+                    <h2>GDAL Converter</h2>
+                    <span>GIS Processing Platform</span>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <!-- Main -->
+                <div class="nav-section">
+                    <div class="nav-section-title">Main</div>
+                    <div class="nav-item active" data-section="dashboard" onclick="navigateTo('dashboard')">
+                        <span class="nav-icon">📊</span> Dashboard
+                    </div>
+                </div>
+
+                <!-- Files -->
+                <div class="nav-section">
+                    <div class="nav-section-title">File Management</div>
+                    <div class="nav-item" data-section="files-upload" onclick="navigateTo('files-upload')">
+                        <span class="nav-icon">📤</span> Upload Files
+                    </div>
+                    <div class="nav-item" data-section="files-browse" onclick="navigateTo('files-browse')">
+                        <span class="nav-icon">📁</span> Browse Files
+                    </div>
+                    <div class="nav-item" data-section="files-remote" onclick="navigateTo('files-remote')">
+                        <span class="nav-icon">🔗</span> Remote Ingest
+                    </div>
+                </div>
+
+                <!-- Validation -->
+                <div class="nav-section">
+                    <div class="nav-section-title">Validation</div>
+                    <div class="nav-item" data-section="validation" onclick="navigateTo('validation')">
+                        <span class="nav-icon">✅</span> Validate Files
+                    </div>
+                </div>
+
+                <!-- Workflows & Jobs -->
+                <div class="nav-section">
+                    <div class="nav-section-title">Processing</div>
+                    <div class="nav-item" data-section="workflows" onclick="navigateTo('workflows')">
+                        <span class="nav-icon">⚡</span> Workflows
+                    </div>
+                    <div class="nav-item" data-section="jobs" onclick="navigateTo('jobs')">
+                        <span class="nav-icon">🔄</span> Jobs
+                    </div>
+                    <div class="nav-item" data-section="convert" onclick="navigateTo('convert')">
+                        <span class="nav-icon">🔄</span> Convert
+                    </div>
+                </div>
+
+                <!-- Preview -->
+                <div class="nav-section">
+                    <div class="nav-section-title">Preview</div>
+                    <div class="nav-item" data-section="preview" onclick="navigateTo('preview')">
+                        <span class="nav-icon">👁️</span> Preview Data
+                    </div>
+                </div>
+
+                <!-- Outputs -->
+                <div class="nav-section">
+                    <div class="nav-section-title">Outputs</div>
+                    <div class="nav-item" data-section="outputs" onclick="navigateTo('outputs')">
+                        <span class="nav-icon">📦</span> Downloads
+                    </div>
+                    <div class="nav-item" data-section="dispatched" onclick="navigateTo('dispatched')">
+                        <span class="nav-icon">🚀</span> Dispatched Layers
+                    </div>
+                </div>
+
+                <!-- Settings -->
+                <div class="nav-section">
+                    <div class="nav-section-title">Settings</div>
+                    <div class="nav-item" data-section="credentials" onclick="navigateTo('credentials')">
+                        <span class="nav-icon">🔑</span> Credentials
+                    </div>
+                    <div class="nav-item" data-section="admin" onclick="navigateTo('admin')">
+                        <span class="nav-icon">⚙️</span> Admin
+                    </div>
+                </div>
+            </nav>
+
+            <!-- User Card -->
+            <div class="sidebar-footer">
+                <div class="user-card">
+                    <div class="user-avatar" id="user-avatar">U</div>
+                    <div class="user-info">
+                        <div class="name" id="user-display-name">User</div>
+                        <div class="role">Administrator</div>
+                    </div>
+                    <button class="btn-logout" onclick="handleLogout()" title="Logout">🚪</button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+
+            <!-- Header -->
+            <div class="content-header">
+                <div>
+                    <h1 id="page-title">Dashboard</h1>
+                    <span class="subtitle" id="page-subtitle">Overview of your GIS processing</span>
+                </div>
+                <div class="header-actions">
+                    <button class="btn-header" onclick="loadHealth()">🏥 Health</button>
+                    <button class="btn-header primary" onclick="navigateTo('files-upload')">📤 Upload File</button>
+                </div>
+            </div>
+
+            <!-- Content Area -->
+            <div class="content-area">
+
+                <!-- ====== DASHBOARD ====== -->
+                <div class="section-panel active" id="section-dashboard">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon">📁</div>
+                            <div class="stat-value" id="stat-files">0</div>
+                            <div class="stat-label">Total Files</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">⚡</div>
+                            <div class="stat-value" id="stat-workflows">0</div>
+                            <div class="stat-label">Workflows</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">🔄</div>
+                            <div class="stat-value" id="stat-jobs">0</div>
+                            <div class="stat-label">Active Jobs</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">✅</div>
+                            <div class="stat-value" id="stat-completed">0</div>
+                            <div class="stat-label">Completed</div>
+                        </div>
+                    </div>
+
+                    <div class="form-card">
+                        <h3>🏥 Server Health</h3>
+                        <div class="json-viewer" id="health-output">Click "Health" button to check server status...</div>
+                    </div>
+
+                    <div class="form-card">
+                        <h3>📋 Supported Conversions</h3>
+                        <div class="json-viewer" id="conversions-output">Loading...</div>
+                    </div>
+                </div>
+
+                <!-- ====== FILES UPLOAD ====== -->
+                <div class="section-panel" id="section-files-upload">
+                    <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
+                        <div class="upload-icon">📤</div>
+                        <h3>Drag & Drop your GIS file here</h3>
+                        <p>or <span class="browse-link">browse files</span> from your computer</p>
+                        <p style="margin-top:8px; font-size:12px; color:var(--text-muted);">Supports SHP, GeoJSON, KML, GeoPackage, DXF, CSV & more (max 100MB)</p>
+                        <input type="file" id="file-input" style="display:none" onchange="handleFileUpload(this)">
+                    </div>
+                    <div class="form-card">
+                        <h3>Upload Details</h3>
+                        <div class="form-group">
+                            <label>Description (Optional)</label>
+                            <input type="text" id="upload-description" placeholder="Describe this file...">
+                        </div>
+                        <div class="json-viewer" id="upload-result" style="display:none"></div>
+                    </div>
+                </div>
+
+                <!-- ====== FILES BROWSE ====== -->
+                <div class="section-panel" id="section-files-browse">
+                    <div class="form-card">
+                        <h3>🔍 Lookup File by ID</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>File ID</label>
+                                <input type="text" id="browse-file-id" placeholder="Enter file ID">
+                            </div>
+                            <div class="form-group" style="display:flex; align-items:flex-end;">
+                                <button class="btn-submit" onclick="getFileById()">Get File</button>
+                                <button class="btn-action" style="margin-left:8px;" onclick="getFileMetadata()">Metadata</button>
+                                <button class="btn-action danger" style="margin-left:8px;" onclick="deleteFileById()">Delete</button>
+                            </div>
+                        </div>
+                        <div class="json-viewer" id="file-browse-result" style="display:none"></div>
+                    </div>
+                </div>
+
+                <!-- ====== FILES REMOTE ====== -->
+                <div class="section-panel" id="section-files-remote">
+                    <div class="form-card">
+                        <h3>🔗 Ingest from Remote URL</h3>
+                        <div class="form-group">
+                            <label>Remote URL</label>
+                            <input type="url" id="remote-url" placeholder="https://example.com/data.geojson">
+                        </div>
+                        <div class="form-group">
+                            <label>Filename (Optional)</label>
+                            <input type="text" id="remote-filename" placeholder="Custom filename">
+                        </div>
+                        <button class="btn-submit" onclick="ingestRemote()">Ingest File</button>
+                        <div class="json-viewer" id="remote-result" style="display:none"></div>
+                    </div>
+                </div>
+
+                <!-- ====== VALIDATION ====== -->
+                <div class="section-panel" id="section-validation">
+                    <div class="form-card">
+                        <h3>✅ Validate a File</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>File ID</label>
+                                <input type="text" id="validate-file-id" placeholder="Enter file ID to validate">
+                            </div>
+                            <div class="form-group" style="display:flex; align-items:flex-end;">
+                                <button class="btn-submit" onclick="validateFile()">Validate</button>
+                                <button class="btn-action" style="margin-left:8px;" onclick="getValidationResult()">Get Result</button>
+                            </div>
+                        </div>
+                        <div class="json-viewer" id="validation-result" style="display:none"></div>
+                    </div>
+                </div>
+
+                <!-- ====== WORKFLOWS ====== -->
+                <div class="section-panel" id="section-workflows">
+                    <div class="form-card">
+                        <h3>⚡ Available Workflows</h3>
+                        <button class="btn-submit" onclick="loadWorkflows()">Load Workflows</button>
+                        <div class="json-viewer" id="workflows-list" style="display:none"></div>
+                    </div>
+                    <div class="form-card">
+                        <h3>▶️ Run a Workflow</h3>
+                        <div class="form-group">
+                            <label>Workflow Code</label>
+                            <input type="text" id="workflow-code" placeholder="e.g. convert-shp-to-geojson">
+                        </div>
+                        <div class="form-group">
+                            <label>Parameters (JSON)</label>
+                            <textarea id="workflow-params" placeholder='{"input_file": "test.shp", "output_format": "GeoJSON"}'></textarea>
+                        </div>
+                        <button class="btn-submit" onclick="runWorkflow()">Run Workflow</button>
+                        <div class="json-viewer" id="workflow-result" style="display:none"></div>
+                    </div>
+                </div>
+
+                <!-- ====== JOBS ====== -->
+                <div class="section-panel" id="section-jobs">
+                    <div class="form-card">
+                        <h3>🔄 Jobs List</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Status Filter</label>
+                                <select id="jobs-status-filter">
+                                    <option value="">All</option>
+                                    <option value="running">Running</option>
+                                    <option value="completed">Completed</option>
+                                    <option value="failed">Failed</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="display:flex; align-items:flex-end;">
+                                <button class="btn-submit" onclick="loadJobs()">Load Jobs</button>
+                            </div>
+                        </div>
+                        <div class="json-viewer" id="jobs-list" style="display:none"></div>
+                    </div>
+                    <div class="form-card">
+                        <h3>🔍 Job Actions</h3>
+                        <div class="form-group">
+                            <label>Job ID</label>
+                            <input type="text" id="job-action-id" placeholder="Enter Job ID">
+                        </div>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                            <button class="btn-action primary" onclick="getJob()">Get Details</button>
+                            <button class="btn-action" onclick="getJobLogs()">View Logs</button>
+                            <button class="btn-action danger" onclick="cancelJob()">Cancel</button>
+                            <button class="btn-action" onclick="retryJob()">Retry</button>
+                            <button class="btn-action primary" onclick="confirmPreview()">Confirm Preview</button>
+                            <button class="btn-action danger" onclick="abortPreview()">Abort Preview</button>
+                        </div>
+                        <div class="json-viewer" id="job-action-result" style="display:none"></div>
+                    </div>
+                </div>
+
+                <!-- ====== CONVERT ====== -->
+                <div class="section-panel" id="section-convert">
+                    <div class="form-card">
+                        <h3>🔄 Convert Data</h3>
+                        <div class="form-group">
+                            <label>Task ID</label>
+                            <input type="text" id="convert-task-id" placeholder="Unique task identifier">
+                        </div>
+                        <div class="form-group">
+                            <label>Input Path</label>
+                            <input type="text" id="convert-input-path" placeholder="Path to input file">
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Input Driver</label>
+                                <input type="text" id="convert-input-driver" placeholder="e.g. ESRI Shapefile">
+                            </div>
+                            <div class="form-group">
+                                <label>Input Extension</label>
+                                <input type="text" id="convert-input-ext" placeholder="e.g. .shp">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Output Driver</label>
+                                <input type="text" id="convert-output-driver" placeholder="e.g. GeoJSON">
+                            </div>
+                            <div class="form-group">
+                                <label>Output Extension</label>
+                                <input type="text" id="convert-output-ext" placeholder="e.g. .geojson">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Callback URL (Optional)</label>
+                            <input type="url" id="convert-callback" placeholder="https://your-server.com/callback">
+                        </div>
+                        <button class="btn-submit" onclick="runConvert()">Start Conversion</button>
+                        <div class="json-viewer" id="convert-result" style="display:none"></div>
+                    </div>
+                </div>
+
+                <!-- ====== PREVIEW ====== -->
+                <div class="section-panel" id="section-preview">
+                    <div class="form-card">
+                        <h3>👁️ Preview Job Data</h3>
+                        <div class="form-group">
+                            <label>Job ID</label>
+                            <input type="text" id="preview-job-id" placeholder="Enter job ID to preview">
+                        </div>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                            <button class="btn-submit" onclick="previewSummary()">Summary</button>
+                            <button class="btn-action primary" onclick="previewFeatures()">Features (GeoJSON)</button>
+                            <button class="btn-action primary" onclick="previewAttributes()">Attributes (Table)</button>
+                        </div>
+                        <div class="json-viewer" id="preview-result" style="display:none"></div>
+                    </div>
+                </div>
+
+                <!-- ====== OUTPUTS ====== -->
+                <div class="section-panel" id="section-outputs">
+                    <div class="form-card">
+                        <h3>📦 Download Output</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Output ID</label>
+                                <input type="text" id="output-id" placeholder="Enter output ID">
+                            </div>
+                            <div class="form-group" style="display:flex; align-items:flex-end;">
+                                <button class="btn-submit" onclick="downloadOutput()">Download</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-card">
+                        <h3>📋 Download by Task ID</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Task ID</label>
+                                <input type="text" id="download-task-id" placeholder="Enter task ID">
+                            </div>
+                            <div class="form-group" style="display:flex; align-items:flex-end;">
+                                <button class="btn-submit" onclick="downloadByTask()">Download</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ====== DISPATCHED LAYERS ====== -->
+                <div class="section-panel" id="section-dispatched">
+                    <div class="form-card">
+                        <h3>🚀 Dispatched Layers</h3>
+                        <button class="btn-submit" onclick="loadDispatchedLayers()">Load Layers</button>
+                        <div id="dispatched-list" style="display:none; margin-top: 15px;"></div>
+                    </div>
+                    <div class="form-card">
+                        <h3>Layer Actions</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Layer ID</label>
+                                <input type="text" id="dispatched-layer-id" placeholder="Enter layer ID">
+                            </div>
+                            <div class="form-group" style="display:flex; align-items:flex-end; gap:8px;">
+                                <button class="btn-action primary" onclick="getDispatchedLayer()">Details</button>
+                                <button class="btn-submit" onclick="redispatchLayer()">Redispatch</button>
+                            </div>
+                        </div>
+                        <div class="json-viewer" id="dispatched-result" style="display:none"></div>
+                    </div>
+                </div>
+
+                <!-- ====== CREDENTIALS ====== -->
+                <div class="section-panel" id="section-credentials">
+                    <div class="form-card">
+                        <h3>🔑 Destination Credentials</h3>
+                        <button class="btn-submit" onclick="loadCredentials()">Load Credentials</button>
+                        <div class="json-viewer" id="credentials-list" style="display:none"></div>
+                    </div>
+                    <div class="form-card">
+                        <h3>➕ Add New Credential</h3>
+                        <div class="form-group">
+                            <label>Name</label>
+                            <input type="text" id="cred-name" placeholder="e.g. My AWS S3">
+                        </div>
+                        <div class="form-group">
+                            <label>Type</label>
+                            <select id="cred-type">
+                                <option value="s3">AWS S3</option>
+                                <option value="gcs">Google Cloud Storage</option>
+                                <option value="azure">Azure Blob</option>
+                                <option value="ftp">FTP</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Config (JSON)</label>
+                            <textarea id="cred-config" placeholder='{"bucket": "my-bucket", "region": "us-east-1"}'></textarea>
+                        </div>
+                        <button class="btn-submit" onclick="createCredential()">Create Credential</button>
+                        <div class="json-viewer" id="cred-result" style="display:none"></div>
+                    </div>
+                    <div class="form-card">
+                        <h3>🗑️ Delete Credential</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Credential ID</label>
+                                <input type="text" id="cred-delete-id" placeholder="Enter credential ID">
+                            </div>
+                            <div class="form-group" style="display:flex; align-items:flex-end;">
+                                <button class="btn-action danger" onclick="deleteCredential()">Delete</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ====== ADMIN ====== -->
+                <div class="section-panel" id="section-admin">
+                    <div class="stats-grid">
+                        <div class="stat-card" onclick="loadAdminStats()" style="cursor:pointer;">
+                            <div class="stat-icon">📈</div>
+                            <div class="stat-value">Stats</div>
+                            <div class="stat-label">Click to load</div>
+                        </div>
+                        <div class="stat-card" onclick="loadAdminAudit()" style="cursor:pointer;">
+                            <div class="stat-icon">📝</div>
+                            <div class="stat-value">Audit</div>
+                            <div class="stat-label">Click to load</div>
+                        </div>
+                    </div>
+                    <div class="form-card">
+                        <h3>📈 Admin Stats</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Start Date</label>
+                                <input type="date" id="admin-start-date">
+                            </div>
+                            <div class="form-group">
+                                <label>End Date</label>
+                                <input type="date" id="admin-end-date">
+                            </div>
+                        </div>
+                        <button class="btn-submit" onclick="loadAdminStats()">Load Stats</button>
+                        <div class="json-viewer" id="admin-stats-result" style="display:none"></div>
+                    </div>
+                    <div class="form-card">
+                        <h3>📝 Audit Log</h3>
+                        <button class="btn-submit" onclick="loadAdminAudit()">Load Audit Log</button>
+                        <div class="json-viewer" id="admin-audit-result" style="display:none"></div>
+                    </div>
+                </div>
+
+            </div><!-- /content-area -->
+        </main>
+    </div><!-- /dashboard-layout -->
+</div>
+
+<script src="/static/script.js"></script>
+</body>
+</html>

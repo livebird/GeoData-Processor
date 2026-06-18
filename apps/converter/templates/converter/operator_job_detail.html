@@ -1,0 +1,26 @@
+{% extends 'converter/base.html' %}
+{% block title %}Job Detail — Operator Panel{% endblock %}
+{% block content %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h1 class="card-title" style="margin: 0; text-align: left;">Geoprocessing Job execution</h1>
+        <a href="{% url 'converter:job_list' %}" class="btn-secondary" style="margin: 0;">Back to Jobs</a>
+    </div>
+
+    <div style="margin-bottom: 20px;">
+        <h2>Job #{{ job.id }}</h2>
+        <p class="text-muted">Workflow model: <strong>{{ job.workflow_code }}</strong></p>
+    </div>
+
+    <!-- HTMX Polling Container -->
+    {% include 'converter/partials/job_progress.html' %}
+
+    <div style="margin-top: 25px; display: flex; gap: 10px;">
+        <a href="{% url 'converter:job_logs_view' job.id %}" class="btn-secondary" style="margin: 0;">View Job Execution Logs</a>
+        {% if job.status == 'completed' %}
+            <a href="{% url 'converter:job_preview_page' job.id %}" class="btn-secondary" style="margin: 0;">Preview Output</a>
+            <a href="{% url 'converter:output_list' %}" class="btn-primary" style="margin: 0; width: auto; background: var(--secondary);">Download Outputs</a>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

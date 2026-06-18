@@ -1,0 +1,45 @@
+{% extends 'converter/base.html' %}
+{% block title %}Outputs — Operator Panel{% endblock %}
+{% block content %}
+<div class="card">
+    <h1 class="card-title">Completed Job Outputs</h1>
+    <p class="card-subtitle">Download finalized spatial conversion datasets directly via signed redirects.</p>
+
+    <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+            <thead>
+                <tr style="border-bottom: 2px solid var(--border); font-weight: bold; color: var(--text-muted);">
+                    <th style="padding: 10px;">Job ID</th>
+                    <th style="padding: 10px;">Workflow</th>
+                    <th style="padding: 10px;">Output File</th>
+                    <th style="padding: 10px;">Completed At</th>
+                    <th style="padding: 10px;">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for job in jobs %}
+                    <tr style="border-bottom: 1px solid var(--border);">
+                        <td style="padding: 10px; font-weight: 500;">{{ job.id|stringformat:".8s" }}...</td>
+                        <td style="padding: 10px;">{{ job.workflow_code }}</td>
+                        <td style="padding: 10px;">
+                            {% if job.output_file %}
+                                {{ job.output_file.original_file_name }}
+                            {% else %}
+                                Completed Output ZIP
+                            {% endif %}
+                        </td>
+                        <td style="padding: 10px; font-size: 0.85em; color: var(--text-muted);">{{ job.completed_at|default:job.updated_at }}</td>
+                        <td style="padding: 10px;">
+                            <a href="{% url 'converter:output_download' job.id %}" class="btn-primary" style="font-size: 0.8em; padding: 6px 12px; margin: 0; width: auto; display: inline-flex;">Download Output</a>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="5" style="padding: 20px; text-align: center; color: var(--text-muted);">No completed outputs available for download.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

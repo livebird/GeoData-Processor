@@ -1,0 +1,53 @@
+{% extends 'converter/base.html' %}
+{% block title %}Files — Operator Panel{% endblock %}
+{% block content %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h1 class="card-title" style="margin: 0; text-align: left;">Operator Files List</h1>
+        <a href="{% url 'converter:file_upload_page' %}" class="btn-secondary" style="margin: 0;">Upload File</a>
+    </div>
+
+    <form method="get" style="margin-bottom: 20px;">
+        <input type="text" name="q" placeholder="Search by name..." value="{{ query }}" style="margin-bottom: 0;">
+    </form>
+
+    <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+            <thead>
+                <tr style="border-bottom: 2px solid var(--border); font-weight: bold; color: var(--text-muted);">
+                    <th style="padding: 10px;">Name</th>
+                    <th style="padding: 10px;">Source</th>
+                    <th style="padding: 10px;">Type</th>
+                    <th style="padding: 10px;">Size</th>
+                    <th style="padding: 10px;">Storage</th>
+                    <th style="padding: 10px;">Uploaded By</th>
+                    <th style="padding: 10px;">Checksum</th>
+                    <th style="padding: 10px;">Uploaded At</th>
+                    <th style="padding: 10px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for file in files %}
+                    <tr style="border-bottom: 1px solid var(--border);">
+                        <td style="padding: 10px; font-weight: 500;"><a href="{% url 'converter:operator_file_detail' file.id %}">{{ file.original_file_name }}</a></td>
+                        <td style="padding: 10px;">{{ file.source_type|upper }}</td>
+                        <td style="padding: 10px;">{{ file.file_type|upper }}</td>
+                        <td style="padding: 10px;">{{ file.size_bytes }} B</td>
+                        <td style="padding: 10px;">{{ file.storage_backend|upper }}</td>
+                        <td style="padding: 10px;">{{ file.uploaded_by|default:"N/A" }}</td>
+                        <td style="padding: 10px; font-family: monospace; font-size: 0.85em;">{{ file.checksum_sha256|slice:":12"|default:"N/A" }}</td>
+                        <td style="padding: 10px; font-size: 0.85em; color: var(--text-muted);">{{ file.created_at }}</td>
+                        <td style="padding: 10px;">
+                            <a href="{% url 'converter:file_validation_result' file.id %}" class="btn-secondary" style="font-size: 0.8em; padding: 4px 8px; margin: 0;">Validate</a>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="9" style="padding: 20px; text-align: center; color: var(--text-muted);">No geographic files uploaded yet.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
