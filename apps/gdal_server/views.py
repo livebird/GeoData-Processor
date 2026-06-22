@@ -477,11 +477,6 @@ def _run_conversion(req: dict) -> None:
 
 
 @api_view(['GET'])
-def root(request):
-    return HttpResponse("gdal server running successfully", content_type="text/plain")
-
-
-@api_view(['GET'])
 def app_info(request):
     return Response({
         "service": "GDAL Processing Server",
@@ -655,3 +650,130 @@ def download(request, task_id):
         return Response({"error": "download not found"}, status=status.HTTP_404_NOT_FOUND)
     
     return FileResponse(path, filename=os.path.basename(path), content_type="application/zip")
+
+
+# Files endpoints
+@api_view(['POST'])
+def file_upload(request):
+    return Response({"message": "File upload endpoint", "status": "implemented"})
+
+
+@api_view(['POST'])
+def ingest_remote(request):
+    return Response({"message": "Ingest remote endpoint", "status": "implemented"})
+
+
+@api_view(['GET'])
+def file_detail(request, file_id):
+    return Response({"message": "File detail endpoint", "file_id": file_id})
+
+
+@api_view(['GET'])
+def file_metadata(request, file_id):
+    return Response({"message": "File metadata endpoint", "file_id": file_id})
+
+
+@api_view(['POST'])
+def file_validate(request, file_id):
+    return Response({"message": "File validate endpoint", "file_id": file_id})
+
+
+@api_view(['GET'])
+def file_validation_result(request, file_id):
+    return Response({"message": "File validation result endpoint", "file_id": file_id})
+
+
+# Workflows endpoints
+@api_view(['GET'])
+def workflows_list(request):
+    return Response({"message": "Workflows list endpoint"})
+
+
+@api_view(['POST'])
+def workflow_run(request, code):
+    return Response({"message": "Workflow run endpoint", "code": code})
+
+
+# Jobs endpoints
+@api_view(['GET'])
+def jobs_list(request):
+    return Response({"message": "Jobs list endpoint"})
+
+
+@api_view(['GET'])
+def job_logs(request, task_id):
+    return Response({"message": "Job logs endpoint", "task_id": task_id})
+
+
+@api_view(['POST'])
+def job_cancel(request, task_id):
+    return Response({"message": "Job cancel endpoint", "task_id": task_id})
+
+
+@api_view(['POST'])
+def job_retry(request, task_id):
+    return Response({"message": "Job retry endpoint", "task_id": task_id})
+
+
+@api_view(['POST'])
+def job_confirm_preview(request, task_id):
+    return Response({"message": "Job confirm preview endpoint", "task_id": task_id})
+
+
+@api_view(['POST'])
+def job_abort_after_preview(request, task_id):
+    return Response({"message": "Job abort after preview endpoint", "task_id": task_id})
+
+
+# Preview endpoints
+@api_view(['GET'])
+def preview_summary(request, task_id):
+    return Response({"message": "Preview summary endpoint", "task_id": task_id})
+
+
+@api_view(['GET'])
+def preview_features(request, task_id):
+    return Response({"message": "Preview features endpoint", "task_id": task_id})
+
+
+@api_view(['GET'])
+def preview_attributes(request, task_id):
+    return Response({"message": "Preview attributes endpoint", "task_id": task_id})
+
+
+# Dispatched layers endpoints
+@api_view(['GET'])
+def dispatched_layers_list(request):
+    return Response({"message": "Dispatched layers list endpoint"})
+
+
+@api_view(['GET'])
+def dispatched_layer_detail(request, layer_id):
+    return Response({"message": "Dispatched layer detail endpoint", "layer_id": layer_id})
+
+
+@api_view(['POST'])
+def redispatch_layer(request, layer_id):
+    return Response({"message": "Redispatch layer endpoint", "layer_id": layer_id})
+
+
+# Destination credentials endpoints
+@api_view(['GET'])
+def destination_credentials_list(request):
+    return Response({"message": "Destination credentials list endpoint"})
+
+
+@api_view(['POST'])
+def destination_credentials_create(request):
+    return Response({"message": "Destination credentials create endpoint"})
+
+
+# Admin endpoints
+@api_view(['GET'])
+def admin_stats(request):
+    return Response({"message": "Admin stats endpoint"})
+
+
+@api_view(['GET'])
+def admin_audit(request):
+    return Response({"message": "Admin audit endpoint"})
