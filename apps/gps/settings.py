@@ -23,6 +23,7 @@ INSTALLED_APPS = [
     'converter.files',
     'converter.workflows',
     'django_celery_beat',
+    'gdal_server',
 ]
 
 MIDDLEWARE = [
