@@ -17,6 +17,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'drf_spectacular',
     'converter',
     'converter.audit',
     'converter.dispatch',
@@ -90,6 +91,17 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+REST_FRAMEWORK = {
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'GeoData Processor API',
+    'DESCRIPTION': 'GDAL Processing Server API',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+}
 
 GDAL_SERVER_URL = 'http://127.0.0.1:8002'
 MAX_UPLOAD_SIZE = 5 * 1024 * 1024 * 1024  # 5 GB
