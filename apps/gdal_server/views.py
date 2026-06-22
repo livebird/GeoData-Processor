@@ -15,12 +15,8 @@ from rest_framework import status
 
 from .serializers import ConvertRequestSerializer
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_CONVERTER_DIR = os.path.join(_REPO_ROOT, "apps", "converter")
-if _CONVERTER_DIR not in sys.path:
-    sys.path.insert(0, _CONVERTER_DIR)
-
-from batchconvert import batch_convert, path_matches_driver_ext
+# Import batchconvert from the converter app
+from converter.batchconvert import batch_convert, path_matches_driver_ext
 
 
 BASE_DIR = os.path.dirname(__file__)
