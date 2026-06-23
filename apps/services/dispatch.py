@@ -22,7 +22,7 @@ try:
 except ImportError:
     pyodbc = None
 
-from .error_catalog import ErrorCatalog, ErrorCode
+from .error_catalog import ErrorCatalog, ErrorCode, ErrorDetail
 
 
 @dataclass
@@ -416,20 +416,40 @@ class DispatchService:
         file_path: str,
         credential: DestinationCredential,
         layer_name: Optional[str] = None,
+        validation_errors: Optional[List[ErrorDetail]] = None,
         **kwargs
     ) -> DispatchResult:
         """
         Dispatch a file to the specified destination.
         
+        Implements FR-VAL-004: Blocks dispatch if error or critical severity issues exist.
+        Implements FR-VAL-005: Allows processing past info and warning.
+        
         Args:
             file_path: Path to the file
             credential: Destination credential
             layer_name: Name of the layer (for vector files)
+            validation_errors: Optional list of validation errors to check before dispatch
             **kwargs: Additional dispatch parameters
             
         Returns:
             DispatchResult with operation status
         """
+        # Check validation errors for blocking severity (FR-VAL-004)
+        if validation_errors:
+            if ErrorCatalog.should_block_dispatch(validation_errors):
+                blocking_errors = ErrorCatalog.get_blocking_errors(validation_errors)
+                return DispatchResult(
+                    success=False,
+                    destination_id=credential.id,
+                    destination_name=credential.name,
+                    error_message="Dispatch blocked due to validation errors",
+                    error_detail={
+                        "blocking_errors": [e.to_dict() for e in blocking_errors],
+                        "non_blocking_errors": [e.to_dict() for e in ErrorCatalog.get_non_blocking_errors(validation_errors)],
+                    }
+                )
+        
         destination_type = credential.destination_type.lower()
         
         if destination_type == "postgresql":

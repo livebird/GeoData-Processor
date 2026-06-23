@@ -95,7 +95,13 @@ class ErrorCatalog:
     This service provides a consistent way to handle and report errors across
     the application, ensuring that error messages are user-friendly and
     machine-readable.
+    
+    Implements FR-VAL-004 and FR-VAL-005 for severity-based dispatch blocking.
     """
+    
+    # Severity levels for dispatch blocking (FR-VAL-004, FR-VAL-005)
+    SEVERITY_BLOCKING = {"error", "critical"}  # These block dispatch
+    SEVERITY_NON_BLOCKING = {"info", "warning"}  # These allow processing to proceed
     
     # Predefined error messages
     ERROR_MESSAGES: Dict[ErrorCode, str] = {
@@ -268,3 +274,48 @@ class ErrorCatalog:
             technical_message=technical_message,
             context=context
         )
+    
+    @classmethod
+    def should_block_dispatch(cls, errors: List[ErrorDetail]) -> bool:
+        """
+        Determine if dispatch should be blocked based on error severities.
+        
+        Implements FR-VAL-004: Blocks dispatch if error or critical severity issues exist.
+        Implements FR-VAL-005: Allows processing past info and warning.
+        
+        Args:
+            errors: List of ErrorDetail objects from validation
+            
+        Returns:
+            True if dispatch should be blocked, False otherwise
+        """
+        for error in errors:
+            if error.severity in cls.SEVERITY_BLOCKING:
+                return True
+        return False
+    
+    @classmethod
+    def get_blocking_errors(cls, errors: List[ErrorDetail]) -> List[ErrorDetail]:
+        """
+        Get list of errors that would block dispatch.
+        
+        Args:
+            errors: List of ErrorDetail objects from validation
+            
+        Returns:
+            List of errors with blocking severity (error or critical)
+        """
+        return [error for error in errors if error.severity in cls.SEVERITY_BLOCKING]
+    
+    @classmethod
+    def get_non_blocking_errors(cls, errors: List[ErrorDetail]) -> List[ErrorDetail]:
+        """
+        Get list of errors that would NOT block dispatch.
+        
+        Args:
+            errors: List of ErrorDetail objects from validation
+            
+        Returns:
+            List of errors with non-blocking severity (info or warning)
+        """
+        return [error for error in errors if error.severity in cls.SEVERITY_NON_BLOCKING]
