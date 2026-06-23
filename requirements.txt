@@ -25,6 +25,7 @@ django-storages>=1.13.0
 
 # Celery (SRS §4)
 django-celery-results>=2.5.0
+django-celery-beat>=2.5.0
 
 # Configuration and Environment (SRS §4)
 django-environ>=0.10.0

@@ -243,9 +243,11 @@ class DispatchService:
         
         try:
             # Build connection string
+            driver = credential.connection_string or 'ODBC Driver 17 for SQL Server'
+            server = credential.host or '.\\SQLEXPRESS'
             conn_str = (
-                f"DRIVER={{{credential.connection_string or 'ODBC Driver 17 for SQL Server'}}};"
-                f"SERVER={credential.host or '.\\SQLEXPRESS'};"
+                f"DRIVER={{{driver}}};"
+                f"SERVER={server};"
                 f"DATABASE={credential.database};"
                 f"UID={credential.username};"
                 f"PWD={credential.password};"

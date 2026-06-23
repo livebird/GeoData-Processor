@@ -91,11 +91,44 @@ class Workflow(models.Model):
 
 class GeoProcessingJob(models.Model):
     """Model for storing geo processing jobs"""
+    
+    # Job status enum (FR-JOB-010)
+    STATUS_CREATED = "created"
+    STATUS_QUEUED = "queued"
+    STATUS_RUNNING = "running"
+    STATUS_AWAITING_PREVIEW = "awaiting_preview"
+    STATUS_COMPLETED = "completed"
+    STATUS_FAILED = "failed"
+    STATUS_CANCELLED = "cancelled"
+    STATUS_PARTIAL = "partial"
+    
+    STATUS_CHOICES = [
+        (STATUS_CREATED, "Created"),
+        (STATUS_QUEUED, "Queued"),
+        (STATUS_RUNNING, "Running"),
+        (STATUS_AWAITING_PREVIEW, "Awaiting Preview"),
+        (STATUS_COMPLETED, "Completed"),
+        (STATUS_FAILED, "Failed"),
+        (STATUS_CANCELLED, "Cancelled"),
+        (STATUS_PARTIAL, "Partial"),
+    ]
+    
+    # Priority enum (FR-JOB-003)
+    PRIORITY_LOW = "low"
+    PRIORITY_NORMAL = "normal"
+    PRIORITY_HIGH = "high"
+    
+    PRIORITY_CHOICES = [
+        (PRIORITY_LOW, "Low"),
+        (PRIORITY_NORMAL, "Normal"),
+        (PRIORITY_HIGH, "High"),
+    ]
+    
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     org_id = models.UUIDField(db_index=True, null=True, blank=True)
     workflow_code = models.CharField(max_length=100)
-    status = models.CharField(max_length=20)
-    priority = models.CharField(max_length=10, default='normal')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_CREATED)
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default=PRIORITY_NORMAL)
     idempotency_key = models.CharField(max_length=255, null=True, blank=True)
     input_file = models.ForeignKey(GeoFile, null=True, on_delete=models.SET_NULL, related_name='input_jobs', db_column='input_file_id')
     output_file = models.ForeignKey(GeoFile, null=True, on_delete=models.SET_NULL, related_name='output_jobs', db_column='output_file_id')
@@ -111,6 +144,9 @@ class GeoProcessingJob(models.Model):
     completed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    
+    # Celery task ID for tracking (FR-JOB-001)
+    celery_task_id = models.CharField(max_length=255, null=True, blank=True, db_index=True)
 
     def save(self, *args, **kwargs):
         if self.idempotency_key == "":

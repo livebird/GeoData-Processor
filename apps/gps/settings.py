@@ -23,6 +23,7 @@ INSTALLED_APPS = [
     'converter.dispatch',
     'converter.files',
     'converter.workflows',
+    'django_celery_results',
     'django_celery_beat',
     'gdal_server',
 ]

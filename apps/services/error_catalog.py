@@ -6,7 +6,7 @@ user-friendly messages, and error codes for the GDAL processing service.
 """
 
 from enum import Enum
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
 
 
