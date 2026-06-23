@@ -13,3 +13,28 @@ pyarrow>=10.0.0
 fastavro>=1.7.0
 pyodbc>=4.0.35
 python-multipart>=0.0.5
+
+# Django REST Framework and API (SRS §4)
+djangorestframework>=3.14.0
+drf-spectacular>=0.26.0
+djangorestframework-simplejwt>=5.2.0
+
+# Upload and Storage (SRS §4)
+django-tus>=0.3.0
+django-storages>=1.13.0
+
+# Celery (SRS §4)
+django-celery-results>=2.5.0
+
+# Configuration and Environment (SRS §4)
+django-environ>=0.10.0
+
+# Metrics and Monitoring (SRS §4)
+django-prometheus>=2.3.0
+celery-prometheus-exporter>=0.4.0
+
+# Logging (SRS §4)
+python-json-logger>=2.0.0
+
+# Security (SRS §4)
+cryptography>=40.0.0
