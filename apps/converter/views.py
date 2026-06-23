@@ -1285,6 +1285,13 @@ def _conversion_worker(
         print(f"  conversion_driver: {output_format}")
         print(f"  conversion_ext: {output_ext}")
 
+        def job_logger(level, msg):
+            print(f"[{level.upper()}] {msg}")
+            # Try appending to error_message since ConversionJob doesn't have a structured log model
+            # For GeoProcessingJob it would log to JobLog
+            job.error_message += f"[{level.upper()}] {msg}\n"
+            job.save(update_fields=["error_message"])
+
         converted_files = batch_convert(
             input_path=input_dir,
             output_path=output_dir,
@@ -1292,6 +1299,7 @@ def _conversion_worker(
             input_driver_ext=input_ext,
             conversion_driver=output_format,
             conversion_driver_ext=output_ext,
+            log_callback=job_logger,
             **batch_kwargs,
         )
 

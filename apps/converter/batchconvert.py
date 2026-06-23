@@ -1,6 +1,22 @@
 import os
 
 import sys
+import subprocess
+
+def translate_gdal_error(error_msg):
+    """Translate raw GDAL errors into user-friendly messages."""
+    if not error_msg:
+        return "Unknown error."
+    error_msg_lower = error_msg.lower()
+    if "no such file or directory" in error_msg_lower:
+        return "The specified file or directory could not be found."
+    elif "not recognized as a supported file format" in error_msg_lower:
+        return "The file format is not supported or the file is corrupted."
+    elif "failed to create" in error_msg_lower:
+        return "Failed to create the output file. Check permissions and disk space."
+    elif "permission denied" in error_msg_lower:
+        return "Permission denied. Cannot access the file or directory."
+    return error_msg
 
 import json
 
@@ -73,6 +89,7 @@ try:
     supported_drivers['Arrow IPC'] = 'rw'
 
     supported_drivers['FlatGeobuf'] = 'rw'
+    supported_drivers['GPX'] = 'rw'
 
 except ImportError as e:
 
@@ -798,7 +815,7 @@ def _find_input_files(input_path, input_driver_ext):
 
 
 
-def batch_convert(input_path, output_path, input_driver, input_driver_ext, conversion_driver, conversion_driver_ext, **kwargs):
+def batch_convert(input_path, output_path, input_driver, input_driver_ext, conversion_driver, conversion_driver_ext, log_callback=None, **kwargs):
 
     """Batch Conversion Tool using GeoPandas and Rasterio (GDAL-based)"""
 
@@ -918,22 +935,22 @@ def batch_convert(input_path, output_path, input_driver, input_driver_ext, conve
     if input_is_raster and output_is_raster:
 
         print(f"[INFO] Calling _raster_to_raster")
-        _raster_to_raster(files_to_process, output_path, conversion_driver, conversion_driver_ext, conversion_crs)
+        _raster_to_raster(files_to_process, output_path, conversion_driver, conversion_driver_ext, conversion_crs, log_callback, **kwargs)
 
     elif not input_is_raster and not output_is_raster:
 
         print(f"[INFO] Calling _vector_to_vector")
-        _vector_to_vector(files_to_process, output_path, conversion_driver, conversion_driver_ext, conversion_crs)
+        _vector_to_vector(files_to_process, output_path, conversion_driver, conversion_driver_ext, conversion_crs, log_callback, **kwargs)
 
     elif not input_is_raster and output_is_raster:
 
         print(f"[INFO] Calling _vector_to_raster")
-        _vector_to_raster(files_to_process, output_path, conversion_driver, conversion_driver_ext, conversion_crs)
+        _vector_to_raster(files_to_process, output_path, conversion_driver, conversion_driver_ext, conversion_crs, log_callback, **kwargs)
 
     elif input_is_raster and not output_is_raster:
 
         print(f"[INFO] Calling _raster_to_vector")
-        _raster_to_vector(files_to_process, output_path, conversion_driver, conversion_driver_ext, conversion_crs)
+        _raster_to_vector(files_to_process, output_path, conversion_driver, conversion_driver_ext, conversion_crs, log_callback, **kwargs)
 
 
 
@@ -955,565 +972,263 @@ def batch_convert(input_path, output_path, input_driver, input_driver_ext, conve
 
 
 
-def _vector_to_vector(files, out_dir, driver, ext, crs):
 
-    print(f"[INFO] _vector_to_vector called with {len(files)} files, driver={driver}, ext={ext}")
+def run_gdal_cmd(cmd, f, log_callback):
+    if log_callback:
+        log_callback('info', f"Running command: {' '.join(cmd)}")
+    else:
+        print(f"[INFO] Running command: {' '.join(cmd)}")
+    
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+        
+        if result.stdout and log_callback:
+            log_callback('info', f"STDOUT: {result.stdout.strip()}")
+            
+        if result.returncode != 0:
+            error_msg = result.stderr.strip()
+            friendly_err = translate_gdal_error(error_msg)
+            if log_callback:
+                log_callback('error', f"GDAL Error: {friendly_err}")
+            raise RuntimeError(f"GDAL command failed: {friendly_err}")
+        elif result.stderr and log_callback:
+            log_callback('warning', f"GDAL Warning: {translate_gdal_error(result.stderr.strip())}")
+            
+    except subprocess.TimeoutExpired:
+        if log_callback:
+            log_callback('error', f"Conversion timed out after 30 minutes for file {os.path.basename(f)}.")
+        raise RuntimeError("Conversion timed out after 30 minutes.")
+    except OSError as e:
+        if log_callback:
+            log_callback('error', f"Command not found or OS error: {e}. Is GDAL installed and in your PATH?")
+        raise RuntimeError(f"Command not found or OS error: {e}. Is GDAL installed and in your PATH?")
 
-    last_error = None
+def _resolve_crs(crs):
+    """Normalise a CRS value to a pyproj-compatible string."""
+    if crs is None:
+        return None
+    crs_str = str(crs)
+    if crs_str.isdigit():
+        return f"EPSG:{crs_str}"
+    return crs_str
+
+
+def _vector_to_vector(files, out_dir, driver, ext, crs, log_callback=None, **kwargs):
+    """Convert vector files using geopandas (no GDAL CLI required)."""
+    if log_callback:
+        log_callback('info', f"_vector_to_vector called with {len(files)} files (Python/geopandas)")
     success_count = 0
+    last_error = None
+
+    target_crs = _resolve_crs(crs)
 
     for f in files:
-
         try:
-
-            print(f"[INFO] Processing file: {os.path.basename(f)}")
+            out_name = os.path.splitext(os.path.basename(f))[0] + ext
+            out_path = os.path.join(out_dir, out_name)
 
             gdf = _read_vector(f)
 
-            print(f"[INFO] Read file successfully, {len(gdf)} features")
+            if target_crs and gdf.crs is not None:
+                gdf = gdf.to_crs(target_crs)
+            elif target_crs:
+                gdf = gdf.set_crs(target_crs)
 
-            if gdf.empty:
-                print(f"[WARNING] Empty GeoDataFrame, skipping: {os.path.basename(f)}")
-                continue
-
-            if not isinstance(gdf, gpd.GeoDataFrame) or gdf.geometry.name not in gdf.columns:
-                raise ValueError(f"{os.path.basename(f)} has no geometry. {_CSV_COORD_ERROR}")
-
-            
-
-            # Ensure geometries are valid
-
-            gdf['geometry'] = gdf.geometry.make_valid()
-
-            
-
-            # Handle CRS transformation
-
-            if crs:
-
-                # User provided a target CRS
-
-                if gdf.crs is None: gdf.set_crs("EPSG:4326", inplace=True)
-
-                gdf = gdf.to_crs(f"EPSG:{crs}" if str(crs).isdigit() else crs)
-
-            
-
-            # KML MUST be in WGS84 (EPSG:4326). 
-
-            # If the output driver is KML, we force it to 4326 if it's not already.
-
-            if driver in ['KML', 'LIBKML']:
-
-                if gdf.crs is None:
-
-                    gdf.set_crs("EPSG:4326", inplace=True)
-
-                elif str(gdf.crs).upper() not in ['EPSG:4326', 'WGS 84']:
-
-                    gdf = gdf.to_crs("EPSG:4326")
-
-                
-
-                # Sanitize coordinates for KML compliance (lon -180 to 180, lat -90 to 90)
-
-                from shapely.ops import transform
-
-                def _normalize_kml_coords(x, y, z=None):
-
-                    nx = (x + 180) % 360 - 180
-
-                    ny = max(-90, min(90, y))
-
-                    return (nx, ny, z) if z is not None else (nx, ny)
-
-                
-
-                gdf['geometry'] = gdf.geometry.map(lambda g: transform(_normalize_kml_coords, g) if g is not None else None)
-
-                
-
-                # Sanitize attributes for KML (convert to string if problematic)
-
-                # Some OGR KML drivers fail on certain field types or names
-
-                for col in gdf.columns:
-
-                    if col != gdf.geometry.name:
-
-                        gdf[col] = gdf[col].astype(str)
-
-            
-
-            out_name = os.path.splitext(os.path.basename(f))[0] + ext
-
-            out_path = os.path.join(out_dir, out_name)
-
-            print(f"[INFO] Writing output to: {out_path}")
-
-            
-
-            if driver == 'CSV':
-
-                gdf.to_csv(out_path, index=False)
-                print(f"[OK] Written CSV: {out_name}")
-
-            elif driver == 'Parquet':
-
-                gdf.to_parquet(out_path)
-                print(f"[OK] Written Parquet: {out_name}")
-
-            elif driver == 'Arrow':
-
+            # Choose the right writer
+            if driver in ('Arrow', 'Arrow IPC'):
                 _write_arrow_dataframe(gdf, out_path)
-                print(f"[OK] Written Arrow: {out_name}")
-
             elif driver == 'Avro':
-
                 _write_avro_dataframe(gdf, out_path)
-                print(f"[OK] Written Avro: {out_name}")
-
+            elif driver in ('KML', 'LIBKML'):
+                _write_kml(gdf, out_path, 'KML')
+            elif driver == 'ESRI Shapefile':
+                _sanitize_shapefile_columns(gdf).to_file(out_path, driver='ESRI Shapefile')
             else:
-
-                # Final check for geometry consistency for Shapefile
-
-                if driver == 'ESRI Shapefile':
-
-                    from shapely.geometry import MultiPolygon, Polygon
-
-                    if any(gdf.geometry.type == 'Polygon') and any(gdf.geometry.type == 'MultiPolygon'):
-
-                        gdf['geometry'] = [MultiPolygon([g]) if isinstance(g, Polygon) else g for g in gdf.geometry]
-
-                    gdf = _sanitize_shapefile_columns(gdf)
-
-                
-
-                try:
-
-                    # DXF is handled here too now via robust fallback
-
-                    print(f"[INFO] Writing with driver: {driver}")
-                    _write_kml(gdf, out_path, driver)
-                    print(f"[OK] Written with driver {driver}: {out_name}")
-
-                except Exception as e:
-
-                    error_str = str(e).lower()
-
-                    if "field" in error_str or "translate" in error_str or "feature" in error_str:
-
-                        # Fallback: Try saving without attributes if the driver rejects them
-
-                        print(f"[RETRY] {out_name}: Saving without attributes due to: {e}")
-
-                        try:
-
-                            _write_kml(gdf[[gdf.geometry.name]], out_path, driver)
-                            print(f"[OK] Written without attributes: {out_name}")
-
-                        except Exception as e2:
-
-                            print(f"[ERROR] Failed to write without attributes: {e2}")
-                            raise e2
-
-                    else:
-
-                        print(f"[ERROR] Failed to write: {e}")
-                        raise e
+                gdf.to_file(out_path, driver=driver)
 
             success_count += 1
-            print(f"[OK] Converted: {out_name}")
-
+            if log_callback:
+                log_callback('info', f"Converted: {out_name}")
         except Exception as e:
-
             last_error = e
-            print(f"[ERROR] {f}: {e}")
-            import traceback
-            print(f"[ERROR] Traceback: {traceback.format_exc()}")
+            if log_callback:
+                log_callback('error', f"Error processing {f}: {str(e)}")
 
-    print(f"[INFO] _vector_to_vector complete. Success: {success_count}/{len(files)}")
-    if last_error and not any(os.listdir(out_dir) if os.path.isdir(out_dir) else []):
-        print(f"[ERROR] No output files produced in {out_dir}")
-        raise RuntimeError(str(last_error))
+    if last_error and success_count == 0:
+        raise last_error
 
 
-def _raster_to_raster(files, out_dir, driver, ext, crs):
+def _raster_to_raster(files, out_dir, driver, ext, crs, log_callback=None, **kwargs):
+    """Convert raster files using rasterio (no GDAL CLI required)."""
+    if log_callback:
+        log_callback('info', f"_raster_to_raster called with {len(files)} files (Python/rasterio)")
 
-    print(f"[INFO] _raster_to_raster called with {len(files)} files, driver={driver}, ext={ext}")
+    target_crs = _resolve_crs(crs)
+
+    # Map GDAL driver name -> rasterio driver name where they differ
+    driver_map = {'GTiff': 'GTiff', 'PNG': 'PNG', 'JPEG': 'JPEG', 'JPG': 'JPEG', 'GPKG': 'GPKG'}
+    rasterio_driver = driver_map.get(driver, driver)
 
     for f in files:
-
+        out_name = os.path.splitext(os.path.basename(f))[0] + ext
+        out_path = os.path.join(out_dir, out_name)
         try:
-
-            print(f"[INFO] Processing file: {os.path.basename(f)}")
-
             with rasterio.open(f) as src:
+                if target_crs:
+                    from rasterio.warp import calculate_default_transform, reproject, Resampling
+                    from rasterio.crs import CRS as RasterioCRS
+                    dst_crs = RasterioCRS.from_string(target_crs)
+                    transform, width, height = calculate_default_transform(
+                        src.crs, dst_crs, src.width, src.height, *src.bounds
+                    )
+                    profile = src.profile.copy()
+                    profile.update(driver=rasterio_driver, crs=dst_crs,
+                                   transform=transform, width=width, height=height)
+                    with rasterio.open(out_path, 'w', **profile) as dst:
+                        for band_idx in range(1, src.count + 1):
+                            reproject(
+                                source=rasterio.band(src, band_idx),
+                                destination=rasterio.band(dst, band_idx),
+                                src_transform=src.transform,
+                                src_crs=src.crs,
+                                dst_transform=transform,
+                                dst_crs=dst_crs,
+                                resampling=Resampling.nearest,
+                            )
+                else:
+                    profile = src.profile.copy()
+                    profile.update(driver=rasterio_driver)
+                    data = src.read()
+                    with rasterio.open(out_path, 'w', **profile) as dst:
+                        dst.write(data)
 
-                profile = src.profile.copy()
-
-                data = src.read()
-
-                print(f"[INFO] Read raster: {src.width}x{src.height}, {src.count} bands, dtype={src.dtypes[0]}")
-
-                
-
-                if crs:
-
-                    from rasterio.crs import CRS
-
-                    dst_crs = CRS.from_epsg(int(crs)) if str(crs).isdigit() else CRS.from_user_input(crs)
-
-                    transform, width, height = calculate_default_transform(src.crs, dst_crs, src.width, src.height, *src.bounds)
-
-                    profile.update(crs=dst_crs, transform=transform, width=width, height=height)
-
-                    dst_data = np.zeros((src.count, height, width), dtype=src.dtypes[0])
-
-                    for i in range(1, src.count + 1):
-
-                        reproject(rasterio.band(src, i), dst_data[i-1], dst_transform=transform, dst_crs=dst_crs, resampling=Resampling.nearest)
-
-                    data = dst_data
-
-                    print(f"[INFO] Reprojected to {crs}")
-
-
-
-                profile.update(driver=driver)
-
-                if driver in ['PNG', 'JPEG']:
-
-                    profile.update(dtype='uint8', count=min(src.count, 4))
-
-                    if data.dtype != 'uint8':
-
-                        data = ((data - data.min()) / (data.max() - data.min()) * 255).astype('uint8')
-
-                    print(f"[INFO] Converted to uint8 for PNG/JPEG")
-
-                
-
-                out_name = os.path.splitext(os.path.basename(f))[0] + ext
-                out_path = os.path.join(out_dir, out_name)
-                print(f"[INFO] Writing output to: {out_path}")
-
-                with rasterio.open(out_path, 'w', **profile) as dst:
-
-                    dst.write(data)
-
-                print(f"[OK] Converted: {out_name}")
-
+            if log_callback:
+                log_callback('info', f"Converted raster: {out_name}")
         except Exception as e:
-
-            print(f"[ERROR] {f}: {e}")
-            import traceback
-            print(f"[ERROR] Traceback: {traceback.format_exc()}")
-
+            if log_callback:
+                log_callback('error', f"Error converting raster {f}: {str(e)}")
+            raise
 
 
-def _vector_to_raster(files, out_dir, driver, ext, crs):
+def _vector_to_raster(files, out_dir, driver, ext, crs, log_callback=None, **kwargs):
+    """Rasterize vector files using rasterio (no GDAL CLI required)."""
+    if log_callback:
+        log_callback('info', f"_vector_to_raster called with {len(files)} files (Python/rasterio)")
 
-    print(f"[INFO] _vector_to_raster called with {len(files)} files, driver={driver}, ext={ext}")
+    target_crs = _resolve_crs(crs)
+    driver_map = {'GTiff': 'GTiff', 'PNG': 'PNG', 'JPEG': 'JPEG', 'JPG': 'JPEG', 'GPKG': 'GPKG'}
+    rasterio_driver = driver_map.get(driver, driver)
 
     for f in files:
-
+        out_name = os.path.splitext(os.path.basename(f))[0] + ext
+        out_path = os.path.join(out_dir, out_name)
         try:
-
-            print(f"[INFO] Processing file: {os.path.basename(f)}")
-
             gdf = _read_vector(f)
+            if target_crs and gdf.crs is not None:
+                gdf = gdf.to_crs(target_crs)
+            elif target_crs:
+                gdf = gdf.set_crs(target_crs)
 
-            print(f"[INFO] Read vector file, {len(gdf)} features")
+            if gdf.empty or gdf.total_bounds is None:
+                raise ValueError(f"GeoDataFrame from {f} is empty or has no bounds.")
 
-            if gdf.empty:
-                print(f"[WARNING] Empty GeoDataFrame, skipping: {os.path.basename(f)}")
-                continue
+            minx, miny, maxx, maxy = gdf.total_bounds
+            pixel_size = 0.0001  # ~10 m at equator for geographic CRS
+            width = max(1, int((maxx - minx) / pixel_size))
+            height = max(1, int((maxy - miny) / pixel_size))
+            # Cap to avoid huge outputs
+            width = min(width, 8192)
+            height = min(height, 8192)
 
-            if crs:
+            from rasterio.transform import from_bounds
+            from rasterio.features import rasterize as rio_rasterize
+            import numpy as np
 
-                if gdf.crs is None: gdf.set_crs("EPSG:4326", inplace=True)
+            transform = from_bounds(minx, miny, maxx, maxy, width, height)
+            shapes_iter = ((geom.__geo_interface__, 255) for geom in gdf.geometry if geom is not None)
+            burned = rio_rasterize(
+                shapes_iter,
+                out_shape=(height, width),
+                transform=transform,
+                fill=0,
+                dtype='uint8',
+            )
 
-                gdf = gdf.to_crs(f"EPSG:{crs}" if str(crs).isdigit() else crs)
-
-                print(f"[INFO] Reprojected to {crs}")
-
-            
-
-            bounds = gdf.total_bounds
-
-            if bounds[2] == bounds[0] or bounds[3] == bounds[1]:
-
-                # Fix for point geometries or zero-area bounds
-
-                bounds = [bounds[0]-1, bounds[1]-1, bounds[2]+1, bounds[3]+1]
-
-                print(f"[INFO] Adjusted zero-area bounds")
-
-            
-
-            res = max(bounds[2]-bounds[0], bounds[3]-bounds[1]) / 1000
-
-            transform = rasterio.transform.from_bounds(*bounds, 1000, 1000)
-
-            
-
-            shapes = [(g, 255) for g in gdf.geometry if g is not None and not g.is_empty]
-
-            if not shapes:
-
-                print(f"[WARNING] No valid geometries to rasterize in {f}")
-
-                continue
-
-            print(f"[INFO] Rasterizing {len(shapes)} geometries")
-
-            burned = rasterize(shapes, out_shape=(1000, 1000), transform=transform)
-
-            
+            from rasterio.crs import CRS as RasterioCRS
+            raster_crs = RasterioCRS.from_string(target_crs) if target_crs else RasterioCRS.from_epsg(4326)
 
             profile = {
-
-                'driver': driver, 'height': 1000, 'width': 1000, 'count': 1,
-
-                'dtype': 'uint8', 'crs': gdf.crs, 'transform': transform
-
+                'driver': rasterio_driver,
+                'dtype': 'uint8',
+                'width': width,
+                'height': height,
+                'count': 1,
+                'crs': raster_crs,
+                'transform': transform,
             }
-
-            
-
-            out_name = os.path.splitext(os.path.basename(f))[0] + ext
-            out_path = os.path.join(out_dir, out_name)
-            print(f"[INFO] Writing output to: {out_path}")
-
             with rasterio.open(out_path, 'w', **profile) as dst:
-
                 dst.write(burned, 1)
 
-            print(f"[OK] Rasterized: {out_name}")
-
+            if log_callback:
+                log_callback('info', f"Rasterized: {out_name}")
         except Exception as e:
-
-            print(f"[ERROR] {f}: {e}")
-            import traceback
-            print(f"[ERROR] Traceback: {traceback.format_exc()}")
-
+            if log_callback:
+                log_callback('error', f"Error rasterizing {f}: {str(e)}")
+            raise
 
 
-def _raster_to_vector(files, out_dir, driver, ext, crs):
+def _raster_to_vector(files, out_dir, driver, ext, crs, log_callback=None, **kwargs):
+    """Polygonize raster files using rasterio.features.shapes (no GDAL CLI required)."""
+    if log_callback:
+        log_callback('info', f"_raster_to_vector called with {len(files)} files (Python/rasterio)")
 
-    print(f"[INFO] _raster_to_vector called with {len(files)} files, driver={driver}, ext={ext}")
+    target_crs = _resolve_crs(crs)
 
     for f in files:
-
+        out_name = os.path.splitext(os.path.basename(f))[0] + ext
+        out_path = os.path.join(out_dir, out_name)
         try:
-
-            print(f"[INFO] Processing file: {os.path.basename(f)}")
+            from rasterio.features import shapes as rio_shapes
+            from shapely.geometry import shape as s_shape_fn
+            import numpy as np
 
             with rasterio.open(f) as src:
-
-                data = src.read(1)
-
-                print(f"[INFO] Read raster: {src.width}x{src.height}, nodata={src.nodata}")
-
-                if src.nodata is not None:
-
-                    mask = data != src.nodata
-
-                else:
-
-                    # Extract all non-zero pixels if nodata is not set (better than data > 0 which ignores negatives)
-
-                    mask = data != 0
-
-                
-
-                # Extract shapes
-
-                results = (
-
-                    {'properties': {'raster_val': float(v) if isinstance(v, (np.floating, float)) else int(v)}, 'geometry': s}
-
-                    for i, (s, v) in enumerate(r_shapes(data, mask=mask, transform=src.transform))
-
-                )
-
-                geoms = list(results)
-
-                if not geoms:
-
-                    print(f"[WARNING] No geometries extracted from raster: {f}")
-
-                    continue
-
-                gdf = gpd.GeoDataFrame.from_features(geoms, crs=src.crs)
-
-                print(f"[INFO] Extracted {len(gdf)} geometries")
-
-            
-
-            # Ensure geometries are valid and handle MultiPolygons
-
-            if not gdf.empty:
-
-                gdf['geometry'] = gdf.geometry.make_valid()
-
-                if any(gdf.geometry.type == 'MultiPolygon'):
-
-                    gdf = gdf.explode(index_parts=False)
-
-                    print(f"[INFO] Exploded MultiPolygons")
-
-
-
-            # Handle CRS transformation
-
-            if crs:
-
-                # User provided a target CRS
-
-                if gdf.crs is None: gdf.set_crs("EPSG:4326", inplace=True)
-
-                gdf = gdf.to_crs(f"EPSG:{crs}" if str(crs).isdigit() else crs)
-
-                print(f"[INFO] Reprojected to {crs}")
-
-
-
-            # KML MUST be in WGS84 (EPSG:4326).
-
-            # If the output driver is KML, we force it to 4326 if it's not already.
-
-            if driver in ['KML', 'LIBKML']:
-
-                if gdf.crs is None:
-
-                    gdf.set_crs("EPSG:4326", inplace=True)
-
-                elif str(gdf.crs).upper() not in ['EPSG:4326', 'WGS 84']:
-
-                    gdf = gdf.to_crs("EPSG:4326")
-
-
-
-                # Sanitize coordinates for KML compliance (lon -180 to 180, lat -90 to 90)
-
-                from shapely.ops import transform
-
-                def _normalize_kml_coords(x, y, z=None):
-
-                    nx = (x + 180) % 360 - 180
-
-                    ny = max(-90, min(90, y))
-
-                    return (nx, ny, z) if z is not None else (nx, ny)
-
-
-
-                gdf['geometry'] = gdf.geometry.map(lambda g: transform(_normalize_kml_coords, g) if g is not None else None)
-
-
-
-                # Sanitize attributes for KML (convert to string if problematic)
-
-                for col in gdf.columns:
-
-                    if col != gdf.geometry.name:
-
-                        gdf[col] = gdf[col].astype(str)
-
-                
-
-            out_name = os.path.splitext(os.path.basename(f))[0] + ext
-
-            out_path = os.path.join(out_dir, out_name)
-
-            print(f"[INFO] Writing output to: {out_path}")
-
-            
-
-            if driver == 'CSV':
-
-                gdf.to_csv(out_path, index=False)
-
-                print(f"[OK] Written CSV: {out_name}")
-
-            elif driver == 'Parquet':
-
-                gdf.to_parquet(out_path)
-
-                print(f"[OK] Written Parquet: {out_name}")
-
-            elif driver == 'Arrow':
-
+                band = src.read(1)
+                mask = band != src.nodata if src.nodata is not None else None
+                src_crs_str = str(src.crs) if src.crs else 'EPSG:4326'
+                transform = src.transform
+
+            geoms = [
+                {'geometry': geom, 'properties': {'DN': int(val)}}
+                for geom, val in rio_shapes(band.astype('float32'), mask=mask, transform=transform)
+                if val != 0
+            ]
+
+            if not geoms:
+                if log_callback:
+                    log_callback('warning', f"No shapes extracted from {f} (all pixels are nodata/zero).")
+                continue
+
+            gdf = gpd.GeoDataFrame.from_features(geoms, crs=src_crs_str)
+
+            if target_crs and gdf.crs is not None:
+                gdf = gdf.to_crs(target_crs)
+
+            if driver in ('Arrow', 'Arrow IPC'):
                 _write_arrow_dataframe(gdf, out_path)
-
-                print(f"[OK] Written Arrow: {out_name}")
-
             elif driver == 'Avro':
-
                 _write_avro_dataframe(gdf, out_path)
-
-                print(f"[OK] Written Avro: {out_name}")
-
+            elif driver == 'ESRI Shapefile':
+                _sanitize_shapefile_columns(gdf).to_file(out_path, driver='ESRI Shapefile')
             else:
+                gdf.to_file(out_path, driver=driver)
 
-                # Final check for geometry consistency for Shapefile
-
-                if driver == 'ESRI Shapefile':
-
-                    from shapely.geometry import MultiPolygon, Polygon
-
-                    if any(gdf.geometry.type == 'Polygon') and any(gdf.geometry.type == 'MultiPolygon'):
-
-                        gdf['geometry'] = [MultiPolygon([g]) if isinstance(g, Polygon) else g for g in gdf.geometry]
-
-                    gdf = _sanitize_shapefile_columns(gdf)
-
-                
-
-                try:
-
-                    print(f"[INFO] Writing with driver: {driver}")
-                    gdf.to_file(out_path, driver=driver)
-                    print(f"[OK] Written with driver {driver}: {out_name}")
-
-                except Exception as e:
-
-                    error_str = str(e).lower()
-
-                    if "field" in error_str or "translate" in error_str or "feature" in error_str:
-
-                        # Fallback: Try saving without attributes
-
-                        print(f"[RETRY] {out_name}: Saving without attributes due to: {e}")
-
-                        try:
-
-                            gdf[[gdf.geometry.name]].to_file(out_path, driver=driver)
-                            print(f"[OK] Written without attributes: {out_name}")
-
-                        except Exception as e2:
-
-                            print(f"[ERROR] Failed to write without attributes: {e2}")
-                            raise e2
-
-                    else:
-
-                        print(f"[ERROR] Failed to write: {e}")
-                        raise e
-
-            print(f"[OK] Vectorized: {out_name}")
-
+            if log_callback:
+                log_callback('info', f"Polygonized: {out_name}")
         except Exception as e:
-
-            print(f"[ERROR] {f}: {e}")
-            import traceback
-            print(f"[ERROR] Traceback: {traceback.format_exc()}")
-
-
-
-
+            if log_callback:
+                log_callback('error', f"Error polygonizing {f}: {str(e)}")
+            raise
 
 def get_gdal_info(file_path):
 
@@ -1585,7 +1300,7 @@ def get_gdal_info(file_path):
 
         '.shp', '.geojson', '.json', '.kml', '.gpkg', '.gdb',
 
-        '.dxf', '.csv', '.gml', '.fgb', '.parquet', '.arrow', '.avro',
+        '.dxf', '.csv', '.gml', '.fgb', '.parquet', '.arrow', '.avro', '.gpx',
 
     }
 

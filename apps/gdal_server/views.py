@@ -399,6 +399,9 @@ def _run_conversion(req: dict) -> None:
         print(f"  conversion_driver_ext: {req['conversion_driver_ext']}")
         print(f"  output_dir: {output_dir}")
         
+        def gdal_logger(level, msg):
+            print(f"[GDAL {level.upper()}] {msg}")
+
         converted_files = batch_convert(
             input_path=req["input_path"],
             output_path=output_dir,
@@ -406,6 +409,7 @@ def _run_conversion(req: dict) -> None:
             input_driver_ext=req["input_driver_ext"],
             conversion_driver=req["conversion_driver"],
             conversion_driver_ext=req["conversion_driver_ext"],
+            log_callback=gdal_logger,
             **req.get("conversion_kwargs", {}),
         )
         

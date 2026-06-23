@@ -1,260 +1,300 @@
 """
-GDAL/OGR Command-Line Tool Conversion Module
+GDAL/OGR Conversion Module (Python API implementation)
 
-This module implements geospatial data conversions using GDAL/OGR command-line tools
-(gdal_translate, ogr2ogr, gdal_rasterize, gdal_polygonize) instead of Python wrappers.
+This module implements geospatial data conversions using the Python GDAL
+ecosystem (rasterio, geopandas, fiona, shapely) instead of CLI tools,
+so it works without GDAL binaries on the system PATH.
 
-Tools used:
-- gdal_translate: Raster to raster conversion
-- ogr2ogr: Vector to vector conversion
-- gdal_rasterize: Vector to raster conversion
-- gdal_polygonize: Raster to vector conversion
+Equivalent functionality to:
+- gdal_translate    → rasterio
+- ogr2ogr           → geopandas / fiona
+- gdal_rasterize    → rasterio.features.rasterize
+- gdal_polygonize   → rasterio.features.shapes
 """
 
 import os
-import subprocess
-import shutil
 from typing import List, Optional
 
 
-def check_gdal_tools():
-    """Check if GDAL tools are available in the system PATH."""
-    tools = ['gdal_translate', 'ogr2ogr', 'gdal_rasterize', 'gdal_polygonize']
+# ---------------------------------------------------------------------------
+# Availability check (non-fatal; callers can decide what to do)
+# ---------------------------------------------------------------------------
+
+def check_gdal_tools() -> bool:
+    """
+    Check whether the Python GDAL ecosystem is available.
+    Returns True if all required packages are importable.
+    Raises RuntimeError listing missing packages if any are absent.
+    """
     missing = []
-    for tool in tools:
-        if not shutil.which(tool):
-            missing.append(tool)
+    for pkg in ("rasterio", "geopandas", "fiona", "shapely"):
+        try:
+            __import__(pkg)
+        except ImportError:
+            missing.append(pkg)
     if missing:
-        raise RuntimeError(f"GDAL tools not found: {', '.join(missing)}. "
-                         "Please install GDAL and ensure it's in your PATH.")
+        raise RuntimeError(
+            f"Required Python packages not found: {', '.join(missing)}. "
+            "Install them with: pip install rasterio geopandas fiona shapely"
+        )
     return True
 
 
-def raster_to_raster(input_path: str, output_path: str, output_format: str = 'GTiff',
+# ---------------------------------------------------------------------------
+# Raster → Raster  (replaces gdal_translate)
+# ---------------------------------------------------------------------------
+
+def raster_to_raster(input_path: str, output_path: str, output_format: str = "GTiff",
                      crs: Optional[str] = None, **kwargs) -> str:
     """
-    Convert raster to raster using gdal_translate.
-    
+    Convert raster to raster using rasterio.
+
     Args:
         input_path: Path to input raster file
         output_path: Path to output raster file
         output_format: Output format (GTiff, PNG, JPEG, etc.)
         crs: Target CRS (e.g., 'EPSG:4326')
-        **kwargs: Additional gdal_translate options
-    
+        **kwargs: nodata value (kwarg 'nodata')
+
     Returns:
         Path to output file
     """
-    cmd = ['gdal_translate']
-    
-    # Set output format
-    cmd.extend(['-of', output_format])
-    
-    # CRS transformation
-    if crs:
-        cmd.extend(['-a_srs', crs])
-    
-    # Additional options
-    if kwargs.get('nodata'):
-        cmd.extend(['-a_nodata', str(kwargs['nodata'])])
-    
-    if kwargs.get('scale'):
-        scale = kwargs['scale']
-        cmd.extend(['-scale', str(scale[0]), str(scale[1])])
-    
-    if kwargs.get('outsize'):
-        outsize = kwargs['outsize']
-        cmd.extend(['-outsize', str(outsize[0]), str(outsize[1])])
-    
-    # Input and output files
-    cmd.extend([input_path, output_path])
-    
-    print(f"[GDAL] Running: {' '.join(cmd)}")
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    
-    if result.returncode != 0:
-        raise RuntimeError(f"gdal_translate failed: {result.stderr}")
-    
+    import rasterio
+    from rasterio.crs import CRS as RasterioCRS
+
+    driver_map = {"GTiff": "GTiff", "GeoTIFF": "GTiff", "PNG": "PNG",
+                  "JPEG": "JPEG", "JPG": "JPEG", "GPKG": "GPKG"}
+    rasterio_driver = driver_map.get(output_format, output_format)
+
+    print(f"[rasterio] Converting raster: {input_path} → {output_path} (driver={rasterio_driver})")
+
+    with rasterio.open(input_path) as src:
+        if crs:
+            from rasterio.warp import calculate_default_transform, reproject, Resampling
+            dst_crs = RasterioCRS.from_string(crs)
+            transform, width, height = calculate_default_transform(
+                src.crs, dst_crs, src.width, src.height, *src.bounds
+            )
+            profile = src.profile.copy()
+            profile.update(driver=rasterio_driver, crs=dst_crs,
+                           transform=transform, width=width, height=height)
+            if kwargs.get("nodata") is not None:
+                profile["nodata"] = kwargs["nodata"]
+            with rasterio.open(output_path, "w", **profile) as dst:
+                for band_idx in range(1, src.count + 1):
+                    reproject(
+                        source=rasterio.band(src, band_idx),
+                        destination=rasterio.band(dst, band_idx),
+                        src_transform=src.transform,
+                        src_crs=src.crs,
+                        dst_transform=transform,
+                        dst_crs=dst_crs,
+                        resampling=Resampling.nearest,
+                    )
+        else:
+            profile = src.profile.copy()
+            profile.update(driver=rasterio_driver)
+            if kwargs.get("nodata") is not None:
+                profile["nodata"] = kwargs["nodata"]
+            data = src.read()
+            with rasterio.open(output_path, "w", **profile) as dst:
+                dst.write(data)
+
     print(f"[OK] Converted: {output_path}")
     return output_path
 
 
-def vector_to_vector(input_path: str, output_path: str, output_format: str = 'GeoJSON',
+# ---------------------------------------------------------------------------
+# Vector → Vector  (replaces ogr2ogr)
+# ---------------------------------------------------------------------------
+
+def vector_to_vector(input_path: str, output_path: str, output_format: str = "GeoJSON",
                      crs: Optional[str] = None, **kwargs) -> str:
     """
-    Convert vector to vector using ogr2ogr.
-    
+    Convert vector to vector using geopandas / fiona.
+
     Args:
         input_path: Path to input vector file
         output_path: Path to output vector file
-        output_format: Output format (ESRI Shapefile, GeoJSON, GeoPackage, etc.)
+        output_format: OGR driver name (ESRI Shapefile, GeoJSON, GPKG, KML, …)
         crs: Target CRS (e.g., 'EPSG:4326')
-        **kwargs: Additional ogr2ogr options
-    
+        **kwargs: layer_name (str)
+
     Returns:
         Path to output file
     """
-    cmd = ['ogr2ogr']
-    
-    # Overwrite output file if exists
-    cmd.append('-overwrite')
-    
-    # Set output format
-    cmd.extend(['-f', output_format])
-    
-    # CRS transformation
+    import geopandas as gpd
+
+    print(f"[geopandas] Converting vector: {input_path} → {output_path} (driver={output_format})")
+
+    gdf = gpd.read_file(input_path)
+
     if crs:
-        cmd.extend(['-t_srs', crs])
-    
-    # Layer options
-    if kwargs.get('layer_name'):
-        cmd.extend(['-nln', kwargs['layer_name']])
-    
-    # Geometry type filter
-    if kwargs.get('geometry_type'):
-        cmd.extend(['-nlt', kwargs['geometry_type']])
-    
-    # Skip failures
-    if kwargs.get('skip_failures'):
-        cmd.append('-skipfailures')
-    
-    # Input and output files
-    cmd.extend([output_path, input_path])
-    
-    print(f"[OGR] Running: {' '.join(cmd)}")
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    
-    if result.returncode != 0:
-        raise RuntimeError(f"ogr2ogr failed: {result.stderr}")
-    
+        if gdf.crs is not None:
+            gdf = gdf.to_crs(crs)
+        else:
+            gdf = gdf.set_crs(crs)
+
+    driver_map = {"GeoPackage": "GPKG", "KMZ": "LIBKML"}
+    fiona_driver = driver_map.get(output_format, output_format)
+
+    gdf.to_file(output_path, driver=fiona_driver)
     print(f"[OK] Converted: {output_path}")
     return output_path
 
 
-def vector_to_raster(input_path: str, output_path: str, output_format: str = 'GTiff',
+# ---------------------------------------------------------------------------
+# Vector → Raster  (replaces gdal_rasterize)
+# ---------------------------------------------------------------------------
+
+def vector_to_raster(input_path: str, output_path: str, output_format: str = "GTiff",
                      burn_value: int = 255, crs: Optional[str] = None,
                      resolution: Optional[float] = None, **kwargs) -> str:
     """
-    Convert vector to raster using gdal_rasterize.
-    
+    Convert vector to raster using rasterio.features.rasterize.
+
     Args:
         input_path: Path to input vector file
         output_path: Path to output raster file
         output_format: Output format (GTiff, PNG, etc.)
-        burn_value: Value to burn into raster pixels
+        burn_value: Pixel value to burn for features
         crs: Target CRS (e.g., 'EPSG:4326')
-        resolution: Output resolution in map units
-        **kwargs: Additional gdal_rasterize options
-    
+        resolution: Output pixel size in map units (default 0.0001°)
+        **kwargs: attribute (str) – field name to use for burn values
+
     Returns:
         Path to output file
     """
-    cmd = ['gdal_rasterize']
-    
-    # Burn value
-    cmd.extend(['-burn', str(burn_value)])
-    
-    # CRS transformation
+    import geopandas as gpd
+    import rasterio
+    from rasterio.features import rasterize as rio_rasterize
+    from rasterio.transform import from_bounds
+    from rasterio.crs import CRS as RasterioCRS
+
+    driver_map = {"GTiff": "GTiff", "GeoTIFF": "GTiff", "PNG": "PNG",
+                  "JPEG": "JPEG", "JPG": "JPEG", "GPKG": "GPKG"}
+    rasterio_driver = driver_map.get(output_format, output_format)
+
+    print(f"[rasterio] Rasterizing: {input_path} → {output_path}")
+
+    gdf = gpd.read_file(input_path)
     if crs:
-        cmd.extend(['-a_srs', crs])
-    
-    # Resolution
-    if resolution:
-        cmd.extend(['-tr', str(resolution), str(resolution)])
+        gdf = gdf.to_crs(crs) if gdf.crs else gdf.set_crs(crs)
+
+    minx, miny, maxx, maxy = gdf.total_bounds
+    pixel_size = resolution if resolution else 0.0001
+    width = min(8192, max(1, int((maxx - minx) / pixel_size)))
+    height = min(8192, max(1, int((maxy - miny) / pixel_size)))
+
+    transform = from_bounds(minx, miny, maxx, maxy, width, height)
+
+    attribute = kwargs.get("attribute")
+    if attribute and attribute in gdf.columns:
+        shapes_iter = ((geom.__geo_interface__, float(val))
+                       for geom, val in zip(gdf.geometry, gdf[attribute])
+                       if geom is not None)
     else:
-        # Default resolution if not specified
-        cmd.extend(['-tr', '1', '1'])
-    
-    # Output format
-    cmd.extend(['-of', output_format])
-    
-    # Attribute to burn (optional)
-    if kwargs.get('attribute'):
-        cmd.extend(['-a', kwargs['attribute']])
-    
-    # All touched option
-    if kwargs.get('all_touched'):
-        cmd.append('-at')
-    
-    # Input and output files
-    cmd.extend([input_path, output_path])
-    
-    print(f"[GDAL] Running: {' '.join(cmd)}")
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    
-    if result.returncode != 0:
-        raise RuntimeError(f"gdal_rasterize failed: {result.stderr}")
-    
-    print(f"[OK] Converted: {output_path}")
+        shapes_iter = ((geom.__geo_interface__, burn_value)
+                       for geom in gdf.geometry if geom is not None)
+
+    burned = rio_rasterize(shapes_iter, out_shape=(height, width),
+                           transform=transform, fill=0, dtype="uint8")
+
+    raster_crs = RasterioCRS.from_string(crs) if crs else RasterioCRS.from_epsg(4326)
+    profile = {"driver": rasterio_driver, "dtype": "uint8",
+               "width": width, "height": height, "count": 1,
+               "crs": raster_crs, "transform": transform}
+
+    with rasterio.open(output_path, "w", **profile) as dst:
+        dst.write(burned, 1)
+
+    print(f"[OK] Rasterized: {output_path}")
     return output_path
 
 
-def raster_to_vector(input_path: str, output_path: str, output_format: str = 'GeoJSON',
+# ---------------------------------------------------------------------------
+# Raster → Vector  (replaces gdal_polygonize)
+# ---------------------------------------------------------------------------
+
+def raster_to_vector(input_path: str, output_path: str, output_format: str = "GeoJSON",
                      band: int = 1, crs: Optional[str] = None, **kwargs) -> str:
     """
-    Convert raster to vector using gdal_polygonize.
-    
+    Convert raster to vector using rasterio.features.shapes (polygonize).
+
     Args:
         input_path: Path to input raster file
         output_path: Path to output vector file
-        output_format: Output format (ESRI Shapefile, GeoJSON, etc.)
-        band: Band number to polygonize (default: 1)
+        output_format: OGR driver name (GeoJSON, ESRI Shapefile, GPKG, …)
+        band: Band number to polygonize (default 1)
         crs: Target CRS (e.g., 'EPSG:4326')
-        **kwargs: Additional gdal_polygonize options
-    
+        **kwargs: field_name (str) – attribute name for raster values (default 'DN')
+
     Returns:
         Path to output file
     """
-    cmd = ['gdal_polygonize.py']
-    
-    # Band to process
-    cmd.extend([input_path, '-b', str(band)])
-    
-    # Output format
-    cmd.extend(['-f', output_format])
-    
-    # Field name for raster values
-    field_name = kwargs.get('field_name', 'DN')
-    cmd.extend([output_path, field_name])
-    
-    print(f"[GDAL] Running: {' '.join(cmd)}")
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    
-    if result.returncode != 0:
-        raise RuntimeError(f"gdal_polygonize failed: {result.stderr}")
-    
-    # Apply CRS transformation if needed
-    if crs:
-        vector_to_vector(output_path, output_path, output_format, crs)
-    
-    print(f"[OK] Converted: {output_path}")
+    import rasterio
+    from rasterio.features import shapes as rio_shapes
+    import geopandas as gpd
+
+    print(f"[rasterio] Polygonizing: {input_path} → {output_path}")
+
+    with rasterio.open(input_path) as src:
+        data = src.read(band)
+        mask = (data != src.nodata).astype("uint8") if src.nodata is not None else None
+        src_crs = str(src.crs) if src.crs else "EPSG:4326"
+        transform = src.transform
+
+    field_name = kwargs.get("field_name", "DN")
+    geoms = [
+        {"geometry": geom, "properties": {field_name: int(val)}}
+        for geom, val in rio_shapes(data.astype("float32"), mask=mask, transform=transform)
+        if val != 0
+    ]
+
+    if not geoms:
+        raise RuntimeError(f"No shapes were extracted from {input_path}. "
+                           "All pixels may be nodata or zero.")
+
+    gdf = gpd.GeoDataFrame.from_features(geoms, crs=src_crs)
+
+    if crs and gdf.crs is not None:
+        gdf = gdf.to_crs(crs)
+
+    driver_map = {"GeoPackage": "GPKG", "KMZ": "LIBKML", "ESRI Shapefile": "ESRI Shapefile"}
+    fiona_driver = driver_map.get(output_format, output_format)
+    gdf.to_file(output_path, driver=fiona_driver)
+
+    print(f"[OK] Polygonized: {output_path}")
     return output_path
 
 
-def batch_convert_gdal_cli(input_path: str, output_path: str, 
+# ---------------------------------------------------------------------------
+# Batch helper
+# ---------------------------------------------------------------------------
+
+def batch_convert_gdal_cli(input_path: str, output_path: str,
                             input_driver: str, input_driver_ext: str,
                             conversion_driver: str, conversion_driver_ext: str,
                             conversion_crs: Optional[str] = None,
                             **kwargs) -> List[str]:
     """
-    Batch conversion using GDAL/OGR command-line tools.
-    
+    Batch conversion using Python GDAL ecosystem (rasterio + geopandas).
+
     Args:
         input_path: Path to input file or directory
         output_path: Path to output directory
         input_driver: Input format driver name
-        input_driver_ext: Input file extension
+        input_driver_ext: Input file extension (e.g. '.tif')
         conversion_driver: Output format driver name
         conversion_driver_ext: Output file extension
         conversion_crs: Target CRS for transformation
         **kwargs: Additional conversion options
-    
+
     Returns:
         List of converted file paths
     """
-    # Check GDAL tools availability
     check_gdal_tools()
-    
+
     # Find input files
     if os.path.isdir(input_path):
         files = []
@@ -263,79 +303,71 @@ def batch_convert_gdal_cli(input_path: str, output_path: str,
                 if f.lower().endswith(input_driver_ext.lower()):
                     files.append(os.path.join(root, f))
     else:
-        files = [input_path] if input_path.lower().endswith(input_driver_ext.lower()) else []
-    
+        files = ([input_path]
+                 if input_path.lower().endswith(input_driver_ext.lower())
+                 else [])
+
     if not files:
         return []
-    
-    # Create output directory
+
     os.makedirs(output_path, exist_ok=True)
-    
-    # Determine conversion type
-    raster_formats = {'.tif', '.tiff', '.png', '.jpg', '.jpeg', '.gtiff'}
+
+    raster_formats = {".tif", ".tiff", ".png", ".jpg", ".jpeg", ".gtiff"}
     input_is_raster = input_driver_ext.lower() in raster_formats
     output_is_raster = conversion_driver_ext.lower() in raster_formats
-    
-    # Convert files
+
     converted_files = []
     for f in files:
         out_name = os.path.splitext(os.path.basename(f))[0] + conversion_driver_ext
         out_file = os.path.join(output_path, out_name)
-        
+
         try:
             if input_is_raster and output_is_raster:
-                # Raster to Raster
                 raster_to_raster(f, out_file, conversion_driver, conversion_crs, **kwargs)
             elif not input_is_raster and not output_is_raster:
-                # Vector to Vector
                 vector_to_vector(f, out_file, conversion_driver, conversion_crs, **kwargs)
             elif not input_is_raster and output_is_raster:
-                # Vector to Raster
                 vector_to_raster(f, out_file, conversion_driver, crs=conversion_crs, **kwargs)
             elif input_is_raster and not output_is_raster:
-                # Raster to Vector
                 raster_to_vector(f, out_file, conversion_driver, crs=conversion_crs, **kwargs)
-            
             converted_files.append(out_file)
         except Exception as e:
             print(f"[ERROR] Failed to convert {f}: {e}")
-    
+
     return converted_files
 
 
-# Format mappings for GDAL/OGR
+# ---------------------------------------------------------------------------
+# Format mappings
+# ---------------------------------------------------------------------------
+
 GDAL_RASTER_FORMATS = {
-    'GTiff': 'GTiff',
-    'GeoTIFF': 'GTiff',
-    'PNG': 'PNG',
-    'JPEG': 'JPEG',
-    'JPG': 'JPEG',
+    "GTiff": "GTiff", "GeoTIFF": "GTiff",
+    "PNG": "PNG", "JPEG": "JPEG", "JPG": "JPEG",
 }
 
 OGR_VECTOR_FORMATS = {
-    'ESRI Shapefile': 'ESRI Shapefile',
-    'GeoJSON': 'GeoJSON',
-    'GeoPackage': 'GPKG',
-    'KML': 'KML',
-    'KMZ': 'LIBKML',
-    'OpenFileGDB': 'OpenFileGDB',
-    'DXF': 'DXF',
-    'CSV': 'CSV',
-    'FlatGeobuf': 'FlatGeobuf',
-    'GeoParquet': 'Parquet',
-    'GML': 'GML',
-    'Avro': 'Avro',
-    'Arrow IPC': 'Arrow',
+    "ESRI Shapefile": "ESRI Shapefile",
+    "GeoJSON": "GeoJSON",
+    "GeoPackage": "GPKG",
+    "KML": "KML",
+    "KMZ": "LIBKML",
+    "OpenFileGDB": "OpenFileGDB",
+    "DXF": "DXF",
+    "CSV": "CSV",
+    "FlatGeobuf": "FlatGeobuf",
+    "GeoParquet": "Parquet",
+    "GML": "GML",
+    "Avro": "Avro",
+    "Arrow IPC": "Arrow",
 }
 
 
-if __name__ == '__main__':
-    # Example usage
-    print("GDAL/OGR Command-Line Conversion Module")
+if __name__ == "__main__":
+    print("GDAL/OGR Python-API Conversion Module")
     print("=" * 50)
-    
     try:
         check_gdal_tools()
-        print("✓ All GDAL tools are available")
+        print("✓ All required Python packages are available")
     except RuntimeError as e:
         print(f"✗ Error: {e}")
