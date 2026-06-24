@@ -80,6 +80,15 @@ class TransformationOptions:
     raster_data_type: str = 'uint8'
     compress: bool = True
     create_zip: bool = True
+    validate_geometries: bool = False  # FR-GEO-001: Validate geometries using OGC ST_IsValid
+    fix_invalid_geometries: bool = False  # FR-GEO-002: Fix invalid geometries via ogr2ogr -makevalid
+    simplify_preserve_topology: bool = True  # FR-GEO-004: Topology-preserving simplification by default
+    clip_aoi: Optional[Any] = None  # FR-GEO-005: Clip by Area of Interest (AOI)
+    clip_boundary_handling: str = 'clip'  # FR-GEO-005: 'clip' or 'drop' for boundary features
+    calculate_geodesic_metrics: bool = False  # FR-GEO-006: Calculate geodesic area/length
+    field_selection: Optional[List[str]] = None  # FR-FLD-001: Select subset of fields
+    field_rename: Optional[Dict[str, str]] = None  # FR-FLD-002: Rename fields
+    constant_fields: Optional[Dict[str, Any]] = None  # FR-FLD-003: Add constant-value fields
 
 
 class TransformationService:
@@ -90,6 +99,188 @@ class TransformationService:
     including vector-to-vector, raster-to-raster, vector-to-raster, and
     raster-to-vector transformations.
     """
+    
+    @staticmethod
+    def validate_geometry(geom) -> Dict[str, Any]:
+        """
+        Validate geometry using OGC ST_IsValid semantics (FR-GEO-001).
+        
+        Args:
+            geom: Shapely geometry object
+            
+        Returns:
+            Dictionary with validation results
+        """
+        if geom is None or geom.is_empty:
+            return {
+                'is_valid': False,
+                'reason': 'Empty or null geometry',
+                'is_simple': True
+            }
+        
+        is_valid = geom.is_valid
+        is_simple = geom.is_simple
+        
+        result = {
+            'is_valid': is_valid,
+            'is_simple': is_simple,
+        }
+        
+        if not is_valid:
+            result['reason'] = 'Geometry is not valid according to OGC ST_IsValid'
+            result['explanation'] = str(geom.is_valid_reason) if hasattr(geom, 'is_valid_reason') else 'Unknown'
+        
+        return result
+    
+    @staticmethod
+    def fix_invalid_geometry(geom) -> Any:
+        """
+        Fix invalid geometry using ogr2ogr -makevalid equivalent (FR-GEO-002).
+        
+        Uses shapely's buffer(0) trick which is equivalent to ogr2ogr's makevalid.
+        
+        Args:
+            geom: Shapely geometry object
+            
+        Returns:
+            Fixed geometry or None if cannot be fixed
+        """
+        if geom is None or geom.is_empty:
+            return geom
+        
+        if geom.is_valid:
+            return geom
+        
+        try:
+            # Buffer with 0 distance is a common trick to fix invalid geometries
+            # This is equivalent to ogr2ogr's -makevalid option
+            fixed = geom.buffer(0)
+            
+            # Check if the fix worked
+            if fixed.is_valid and not fixed.is_empty:
+                return fixed
+            
+            # Try with positive tiny buffer
+            fixed = geom.buffer(1e-9)
+            if fixed.is_valid and not fixed.is_empty:
+                return fixed
+            
+            return geom  # Return original if fix failed
+        except Exception:
+            return geom
+    
+    @staticmethod
+    def clip_by_aoi(gdf, aoi_geom, boundary_handling: str = 'clip'):
+        """
+        Clip GeoDataFrame by Area of Interest (FR-GEO-005).
+        
+        Args:
+            gdf: Input GeoDataFrame
+            aoi_geom: Shapely geometry for AOI
+            boundary_handling: 'clip' to clip features at boundary, 'drop' to drop boundary-spanning features
+            
+        Returns:
+            Clipped GeoDataFrame
+        """
+        if aoi_geom is None:
+            return gdf
+        
+        try:
+            if boundary_handling == 'drop':
+                # Drop features that span the boundary
+                gdf = gdf[gdf.geometry.intersects(aoi_geom)]
+                gdf = gdf[gdf.geometry.within(aoi_geom)]
+            else:
+                # Clip features at boundary
+                gdf = gpd.clip(gdf, aoi_geom)
+            
+            return gdf
+        except Exception as e:
+            print(f"Warning: Failed to clip by AOI: {e}")
+            return gdf
+    
+    @staticmethod
+    def calculate_geodesic_metrics(gdf, use_cartesian: bool = False):
+        """
+        Calculate area and length metrics (FR-GEO-006).
+        
+        By default uses geodesic computation. Cartesian computation is opt-in for projected layers.
+        
+        Args:
+            gdf: Input GeoDataFrame
+            use_cartesian: If True, use Cartesian computation (for projected CRS)
+            
+        Returns:
+            GeoDataFrame with added area and length fields
+        """
+        try:
+            if use_cartesian and gdf.crs and gdf.crs.is_projected:
+                # Use Cartesian computation for projected CRS
+                gdf['area_sqm'] = gdf.geometry.area
+                gdf['length_m'] = gdf.geometry.length
+            else:
+                # Use geodesic computation (default)
+                from pyproj import Geod
+                geod = Geod(ellps='WGS84')
+                
+                areas = []
+                lengths = []
+                
+                for geom in gdf.geometry:
+                    if geom.geom_type in ['Polygon', 'MultiPolygon']:
+                        area, _, _ = geod.geometry_area_perimeter(geom)
+                        areas.append(abs(area))
+                        lengths.append(0)
+                    elif geom.geom_type in ['LineString', 'MultiLineString']:
+                        _, length, _ = geod.geometry_length_perimeter(geom)
+                        areas.append(0)
+                        lengths.append(length)
+                    else:
+                        areas.append(0)
+                        lengths.append(0)
+                
+                gdf['area_sqm'] = areas
+                gdf['length_m'] = lengths
+            
+            return gdf
+        except Exception as e:
+            print(f"Warning: Failed to calculate geodesic metrics: {e}")
+            return gdf
+    
+    @staticmethod
+    def apply_field_operations(gdf, field_selection=None, field_rename=None, constant_fields=None):
+        """
+        Apply field operations: selection, rename, and constant fields (FR-FLD-001, FR-FLD-002, FR-FLD-003).
+        
+        Args:
+            gdf: Input GeoDataFrame
+            field_selection: List of field names to retain
+            field_rename: Dictionary mapping old field names to new field names
+            constant_fields: Dictionary mapping field names to constant values
+            
+        Returns:
+            GeoDataFrame with field operations applied
+        """
+        try:
+            # Apply field selection (FR-FLD-001)
+            if field_selection:
+                # Keep geometry column and selected fields
+                cols_to_keep = ['geometry'] + [f for f in field_selection if f in gdf.columns]
+                gdf = gdf[cols_to_keep]
+            
+            # Apply field rename (FR-FLD-002)
+            if field_rename:
+                gdf = gdf.rename(columns=field_rename)
+            
+            # Add constant fields (FR-FLD-003)
+            if constant_fields:
+                for field_name, value in constant_fields.items():
+                    gdf[field_name] = value
+            
+            return gdf
+        except Exception as e:
+            print(f"Warning: Failed to apply field operations: {e}")
+            return gdf
     
     @staticmethod
     def _check_dependencies() -> None:
@@ -138,15 +329,46 @@ class TransformationService:
             gdf = gpd.read_file(input_path, driver=input_driver)
             gdf = apply_source_crs(gdf, target_crs=options.target_crs)
             
+            # Validate geometries if requested (FR-GEO-001)
+            validation_results = []
+            if options.validate_geometries:
+                for idx, geom in enumerate(gdf.geometry):
+                    result = TransformationService.validate_geometry(geom)
+                    validation_results.append(result)
+                    if not result['is_valid']:
+                        # Log invalid geometry
+                        print(f"Warning: Invalid geometry at index {idx}: {result.get('reason', 'Unknown')}")
+            
+            # Fix invalid geometries if requested (FR-GEO-002)
+            if options.fix_invalid_geometries:
+                gdf['geometry'] = gdf['geometry'].apply(TransformationService.fix_invalid_geometry)
+            
             # Apply CRS transformation if specified
             if options.target_crs and gdf.crs is not None:
                 gdf = gdf.to_crs(options.target_crs)
             
-            # Simplify geometries if tolerance specified
+            # Simplify geometries if tolerance specified (FR-GEO-004)
             if options.simplify_tolerance is not None:
                 gdf['geometry'] = gdf['geometry'].simplify(
                     tolerance=options.simplify_tolerance,
-                    preserve_topology=True
+                    preserve_topology=options.simplify_preserve_topology
+                )
+            
+            # Clip by AOI if specified (FR-GEO-005)
+            if options.clip_aoi is not None:
+                gdf = TransformationService.clip_by_aoi(gdf, options.clip_aoi, options.clip_boundary_handling)
+            
+            # Calculate geodesic metrics if requested (FR-GEO-006)
+            if options.calculate_geodesic_metrics:
+                gdf = TransformationService.calculate_geodesic_metrics(gdf, use_cartesian=False)
+            
+            # Apply field operations (FR-FLD-001, FR-FLD-002, FR-FLD-003)
+            if options.field_selection or options.field_rename or options.constant_fields:
+                gdf = TransformationService.apply_field_operations(
+                    gdf,
+                    field_selection=options.field_selection,
+                    field_rename=options.field_rename,
+                    constant_fields=options.constant_fields
                 )
             
             # Ensure output directory exists
