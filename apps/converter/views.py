@@ -46,6 +46,7 @@ from .operator_sync import (
     sync_conversion_job_failed,
     sync_conversion_job_started,
 )
+from services.crs_policy import suggest_crs_by_extent, suggestions_to_dicts
 
 # ────────────────────────────────────────────────────────────────
 # HELPER FUNCTIONS & UPLOAD VALIDATION
@@ -3200,11 +3201,26 @@ def file_validation_result(request, file_id):
 def assign_crs(request, file_id):
     """Assign or override Coordinate Reference System manually."""
     geofile = get_object_or_404(GeoFile, id=file_id)
+    suggestions = []
+    for layer in geofile.layers.all():
+        for suggestion in suggest_crs_by_extent(layer.bbox):
+            item = suggestion.__dict__.copy()
+            item["layer_name"] = layer.layer_name
+            suggestions.append(item)
+
+    seen_suggestions = set()
+    unique_suggestions = []
+    for suggestion in suggestions:
+        key = (suggestion["epsg"], suggestion["layer_name"])
+        if key not in seen_suggestions:
+            unique_suggestions.append(suggestion)
+            seen_suggestions.add(key)
+
     if request.method == "POST":
         epsg = request.POST.get('epsg', '').strip()
         if epsg:
             try:
-                epsg_int = int(epsg)
+                epsg_int = int(epsg.upper().replace('EPSG:', ''))
                 for layer in geofile.layers.all():
                     layer.source_crs_epsg = epsg_int
                     layer.source_crs_wkt = f"EPSG:{epsg_int}"
@@ -3213,11 +3229,13 @@ def assign_crs(request, file_id):
             except ValueError:
                 return render(request, 'converter/operator_assign_crs.html', {
                     'file': geofile,
+                    'suggestions': unique_suggestions,
                     'error': 'EPSG code must be a valid integer.',
                     'active_page': 'file_list'
                 })
     return render(request, 'converter/operator_assign_crs.html', {
         'file': geofile,
+        'suggestions': unique_suggestions,
         'active_page': 'file_list'
     })
 

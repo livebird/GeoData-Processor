@@ -8,6 +8,7 @@ REST Framework views and Celery tasks.
 
 import os
 import sys
+import zipfile
 from typing import Dict, Any, Optional, List, Tuple
 from dataclasses import dataclass
 from datetime import datetime
@@ -47,6 +48,9 @@ except ImportError as e:
 
 from .error_catalog import ErrorCatalog, ErrorCode
 from .validation import ValidationService
+from .crs_policy import apply_source_crs, configure_axis_order, resolve_raster_source_crs
+
+configure_axis_order()
 
 
 # Raster format definitions
@@ -132,6 +136,7 @@ class TransformationService:
         try:
             # Read input file
             gdf = gpd.read_file(input_path, driver=input_driver)
+            gdf = apply_source_crs(gdf, target_crs=options.target_crs)
             
             # Apply CRS transformation if specified
             if options.target_crs and gdf.crs is not None:
@@ -209,8 +214,11 @@ class TransformationService:
         try:
             # Read input raster
             with rasterio.open(input_path) as src:
+                src_crs = resolve_raster_source_crs(src, target_crs=options.target_crs)
                 profile = src.profile
                 profile.update(driver=output_driver)
+                if src_crs:
+                    profile.update(crs=src_crs)
                 
                 # Update compression settings
                 if options.compress and output_driver == 'GTiff':
@@ -292,6 +300,7 @@ class TransformationService:
         try:
             # Read input vector
             gdf = gpd.read_file(input_path, driver=input_driver)
+            gdf = apply_source_crs(gdf, target_crs=options.target_crs)
             
             if gdf.empty:
                 return TransformationResult(
@@ -400,6 +409,7 @@ class TransformationService:
         try:
             # Read input raster
             with rasterio.open(input_path) as src:
+                src_crs = resolve_raster_source_crs(src, target_crs=options.target_crs)
                 # Extract shapes from raster
                 shapes = list(r_shapes(
                     src.read(1),
@@ -420,7 +430,7 @@ class TransformationService:
             gdf = gpd.GeoDataFrame(
                 {'value': values},
                 geometry=geometries,
-                crs=src.crs
+                crs=src_crs
             )
             
             # Apply CRS transformation if specified

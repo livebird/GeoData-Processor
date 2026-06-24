@@ -24,6 +24,13 @@ import re
 
 import zipfile
 
+from services.crs_policy import (
+    apply_source_crs,
+    configure_axis_order,
+    normalize_crs,
+    resolve_raster_source_crs,
+)
+
 
 
 # Fix PROJ_LIB environment variable mismatch
@@ -37,6 +44,7 @@ try:
     os.environ['PROJ_LIB'] = proj_data
 
     os.environ['PROJ_DATA'] = proj_data
+    configure_axis_order()
 
 except ImportError:
 
@@ -1005,12 +1013,7 @@ def run_gdal_cmd(cmd, f, log_callback):
 
 def _resolve_crs(crs):
     """Normalise a CRS value to a pyproj-compatible string."""
-    if crs is None:
-        return None
-    crs_str = str(crs)
-    if crs_str.isdigit():
-        return f"EPSG:{crs_str}"
-    return crs_str
+    return normalize_crs(crs)
 
 
 def _vector_to_vector(files, out_dir, driver, ext, crs, log_callback=None, **kwargs):
@@ -1021,6 +1024,7 @@ def _vector_to_vector(files, out_dir, driver, ext, crs, log_callback=None, **kwa
     last_error = None
 
     target_crs = _resolve_crs(crs)
+    source_crs = _resolve_crs(kwargs.get('source_crs'))
 
     for f in files:
         try:
@@ -1028,11 +1032,10 @@ def _vector_to_vector(files, out_dir, driver, ext, crs, log_callback=None, **kwa
             out_path = os.path.join(out_dir, out_name)
 
             gdf = _read_vector(f)
+            gdf = apply_source_crs(gdf, source_crs=source_crs, target_crs=target_crs)
 
             if target_crs and gdf.crs is not None:
                 gdf = gdf.to_crs(target_crs)
-            elif target_crs:
-                gdf = gdf.set_crs(target_crs)
 
             # Choose the right writer
             if driver in ('Arrow', 'Arrow IPC'):
@@ -1064,6 +1067,7 @@ def _raster_to_raster(files, out_dir, driver, ext, crs, log_callback=None, **kwa
         log_callback('info', f"_raster_to_raster called with {len(files)} files (Python/rasterio)")
 
     target_crs = _resolve_crs(crs)
+    source_crs = _resolve_crs(kwargs.get('source_crs'))
 
     # Map GDAL driver name -> rasterio driver name where they differ
     driver_map = {'GTiff': 'GTiff', 'PNG': 'PNG', 'JPEG': 'JPEG', 'JPG': 'JPEG', 'GPKG': 'GPKG'}
@@ -1074,12 +1078,13 @@ def _raster_to_raster(files, out_dir, driver, ext, crs, log_callback=None, **kwa
         out_path = os.path.join(out_dir, out_name)
         try:
             with rasterio.open(f) as src:
+                src_crs = resolve_raster_source_crs(src, source_crs=source_crs, target_crs=target_crs)
                 if target_crs:
                     from rasterio.warp import calculate_default_transform, reproject, Resampling
                     from rasterio.crs import CRS as RasterioCRS
                     dst_crs = RasterioCRS.from_string(target_crs)
                     transform, width, height = calculate_default_transform(
-                        src.crs, dst_crs, src.width, src.height, *src.bounds
+                        src_crs, dst_crs, src.width, src.height, *src.bounds
                     )
                     profile = src.profile.copy()
                     profile.update(driver=rasterio_driver, crs=dst_crs,
@@ -1090,7 +1095,7 @@ def _raster_to_raster(files, out_dir, driver, ext, crs, log_callback=None, **kwa
                                 source=rasterio.band(src, band_idx),
                                 destination=rasterio.band(dst, band_idx),
                                 src_transform=src.transform,
-                                src_crs=src.crs,
+                                src_crs=src_crs,
                                 dst_transform=transform,
                                 dst_crs=dst_crs,
                                 resampling=Resampling.nearest,
@@ -1116,6 +1121,7 @@ def _vector_to_raster(files, out_dir, driver, ext, crs, log_callback=None, **kwa
         log_callback('info', f"_vector_to_raster called with {len(files)} files (Python/rasterio)")
 
     target_crs = _resolve_crs(crs)
+    source_crs = _resolve_crs(kwargs.get('source_crs'))
     driver_map = {'GTiff': 'GTiff', 'PNG': 'PNG', 'JPEG': 'JPEG', 'JPG': 'JPEG', 'GPKG': 'GPKG'}
     rasterio_driver = driver_map.get(driver, driver)
 
@@ -1124,10 +1130,9 @@ def _vector_to_raster(files, out_dir, driver, ext, crs, log_callback=None, **kwa
         out_path = os.path.join(out_dir, out_name)
         try:
             gdf = _read_vector(f)
+            gdf = apply_source_crs(gdf, source_crs=source_crs, target_crs=target_crs)
             if target_crs and gdf.crs is not None:
                 gdf = gdf.to_crs(target_crs)
-            elif target_crs:
-                gdf = gdf.set_crs(target_crs)
 
             if gdf.empty or gdf.total_bounds is None:
                 raise ValueError(f"GeoDataFrame from {f} is empty or has no bounds.")
@@ -1183,6 +1188,7 @@ def _raster_to_vector(files, out_dir, driver, ext, crs, log_callback=None, **kwa
         log_callback('info', f"_raster_to_vector called with {len(files)} files (Python/rasterio)")
 
     target_crs = _resolve_crs(crs)
+    source_crs = _resolve_crs(kwargs.get('source_crs'))
 
     for f in files:
         out_name = os.path.splitext(os.path.basename(f))[0] + ext
@@ -1195,7 +1201,8 @@ def _raster_to_vector(files, out_dir, driver, ext, crs, log_callback=None, **kwa
             with rasterio.open(f) as src:
                 band = src.read(1)
                 mask = band != src.nodata if src.nodata is not None else None
-                src_crs_str = str(src.crs) if src.crs else 'EPSG:4326'
+                src_crs = resolve_raster_source_crs(src, source_crs=source_crs, target_crs=target_crs)
+                src_crs_str = str(src_crs) if src_crs else None
                 transform = src.transform
 
             geoms = [

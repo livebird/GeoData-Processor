@@ -93,6 +93,29 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
+# CRS / GDAL policy (SRS §7.6)
+GDAL_AXIS_ORDER = os.environ.get('GDAL_AXIS_ORDER', 'TRADITIONAL_GIS_ORDER')
+os.environ.setdefault('OSR_DEFAULT_AXIS_MAPPING_STRATEGY', GDAL_AXIS_ORDER)
+os.environ.setdefault('OGR_CT_FORCE_TRADITIONAL_GIS_ORDER', 'YES')
+
+GDAL_NTV2_GRID_DIRS = [
+    path
+    for path in os.environ.get(
+        'GDAL_NTV2_GRID_DIRS',
+        os.path.join(BASE_DIR, 'proj_grids')
+    ).split(os.pathsep)
+    if path
+]
+_proj_search_paths = []
+for _key in ('PROJ_DATA', 'PROJ_LIB'):
+    if os.environ.get(_key):
+        _proj_search_paths.extend(os.environ[_key].split(os.pathsep))
+_proj_search_paths.extend(path for path in GDAL_NTV2_GRID_DIRS if os.path.isdir(path))
+if _proj_search_paths:
+    _proj_search_path = os.pathsep.join(dict.fromkeys(_proj_search_paths))
+    os.environ.setdefault('PROJ_DATA', _proj_search_path)
+    os.environ.setdefault('PROJ_LIB', _proj_search_path)
+
 REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
