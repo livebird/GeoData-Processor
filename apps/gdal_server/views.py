@@ -11,7 +11,7 @@ import difflib
 from django.http import JsonResponse, HttpResponse, FileResponse
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework import status as api_status
 
 from .serializers import ConvertRequestSerializer
 
@@ -534,7 +534,7 @@ def supported_conversions(request):
 def convert(request):
     serializer = ConvertRequestSerializer(data=request.data)
     if not serializer.is_valid():
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=api_status.HTTP_400_BAD_REQUEST)
     
     req = serializer.validated_data
     os.makedirs(_task_dir(req["task_id"]), exist_ok=True)
@@ -552,7 +552,7 @@ def convert(request):
                 "message": validation.get("reason", "Input validation failed"),
                 "validation": validation,
             },
-            status=status.HTTP_400_BAD_REQUEST
+            status=api_status.HTTP_400_BAD_REQUEST
         )
     
     if not pair_validation.get("valid"):
@@ -565,7 +565,7 @@ def convert(request):
                 "message": pair_validation.get("reason", "Unsupported conversion pair"),
                 "validation": pair_validation,
             },
-            status=status.HTTP_400_BAD_REQUEST
+            status=api_status.HTTP_400_BAD_REQUEST
         )
     
     queued_payload = {"status": "queued", "task_id": req["task_id"], "validation": validation}
@@ -599,7 +599,7 @@ def task_detail(request, task_id):
     if not db_task and not file_status:
         zip_path = _existing_zip_path(task_id)
         if not zip_path:
-            return Response({"error": "task not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": "task not found"}, status=api_status.HTTP_404_NOT_FOUND)
         file_status = {
             "status": "completed",
             "task_id": task_id,
@@ -651,7 +651,7 @@ def status(request, task_id):
 def download(request, task_id):
     path = _existing_zip_path(task_id)
     if not path:
-        return Response({"error": "download not found"}, status=status.HTTP_404_NOT_FOUND)
+        return Response({"error": "download not found"}, status=api_status.HTTP_404_NOT_FOUND)
     
     return FileResponse(path, filename=os.path.basename(path), content_type="application/zip")
 

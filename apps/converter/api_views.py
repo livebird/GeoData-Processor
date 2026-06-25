@@ -10,8 +10,27 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .models import GeoProcessingJob, GeoFile, Workflow
+from .models import (
+    GeoProcessingJob,
+    GeoFile,
+    Workflow,
+    GeoFileLayer,
+    GeoProcessingJobLog,
+    DispatchedLayer,
+    DestinationCredential,
+    AuditLog
+)
 from .tasks import execute_workflow_job, cancel_job, confirm_preview
+from .serializers import (
+    GeoFileSerializer,
+    GeoFileLayerSerializer,
+    WorkflowSerializer,
+    GeoProcessingJobSerializer,
+    GeoProcessingJobLogSerializer,
+    DispatchedLayerSerializer,
+    DestinationCredentialSerializer,
+    AuditLogSerializer
+)
 
 
 class IdempotencyMixin:
@@ -74,6 +93,7 @@ class JobViewSet(viewsets.ModelViewSet, IdempotencyMixin):
     """
     
     queryset = GeoProcessingJob.objects.all()
+    serializer_class = GeoProcessingJobSerializer
     
     def create(self, request, *args, **kwargs):
         """
@@ -217,3 +237,38 @@ class JobCreateView(APIView, IdempotencyMixin):
             'celery_task_id': task.id,
             'created_at': job.created_at.isoformat(),
         }, status=status.HTTP_201_CREATED)
+
+
+class GeoFileViewSet(viewsets.ModelViewSet):
+    queryset = GeoFile.objects.all()
+    serializer_class = GeoFileSerializer
+
+
+class GeoFileLayerViewSet(viewsets.ModelViewSet):
+    queryset = GeoFileLayer.objects.all()
+    serializer_class = GeoFileLayerSerializer
+
+
+class WorkflowViewSet(viewsets.ModelViewSet):
+    queryset = Workflow.objects.all()
+    serializer_class = WorkflowSerializer
+
+
+class GeoProcessingJobLogViewSet(viewsets.ModelViewSet):
+    queryset = GeoProcessingJobLog.objects.all()
+    serializer_class = GeoProcessingJobLogSerializer
+
+
+class DispatchedLayerViewSet(viewsets.ModelViewSet):
+    queryset = DispatchedLayer.objects.all()
+    serializer_class = DispatchedLayerSerializer
+
+
+class DestinationCredentialViewSet(viewsets.ModelViewSet):
+    queryset = DestinationCredential.objects.all()
+    serializer_class = DestinationCredentialSerializer
+
+
+class AuditLogViewSet(viewsets.ModelViewSet):
+    queryset = AuditLog.objects.all()
+    serializer_class = AuditLogSerializer

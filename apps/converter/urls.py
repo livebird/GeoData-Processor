@@ -1,5 +1,26 @@
-from django.urls import path
+from django.urls import path, include
 from . import views
+from rest_framework.routers import DefaultRouter
+from .api_views import (
+    JobViewSet,
+    GeoFileViewSet,
+    GeoFileLayerViewSet,
+    WorkflowViewSet,
+    GeoProcessingJobLogViewSet,
+    DispatchedLayerViewSet,
+    DestinationCredentialViewSet,
+    AuditLogViewSet
+)
+
+router = DefaultRouter()
+router.register(r'jobs', JobViewSet, basename='job')
+router.register(r'files', GeoFileViewSet, basename='file')
+router.register(r'layers', GeoFileLayerViewSet, basename='layer')
+router.register(r'workflows', WorkflowViewSet, basename='workflow')
+router.register(r'job-logs', GeoProcessingJobLogViewSet, basename='job-log')
+router.register(r'dispatched-layers', DispatchedLayerViewSet, basename='dispatched-layer')
+router.register(r'credentials', DestinationCredentialViewSet, basename='credential')
+router.register(r'audit-logs', AuditLogViewSet, basename='audit-log')
 
 app_name = 'converter'
 
@@ -76,4 +97,5 @@ urlpatterns = [
     # Transform Tools
     path('transform/', views.transform_page, name='transform_page'),
     path('transform/api/', views.transform_api, name='transform_api'),
+    path('api/v1/', include(router.urls)),
 ]

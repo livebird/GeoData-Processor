@@ -310,8 +310,10 @@
             <div style="display: flex; flex-direction: column; gap: 0.75rem;">
                 {% for rfile in recent_files %}
                 <div style="padding: 0.75rem; border-radius: 8px; background: rgba(2, 6, 23, 0.03); border: 1px solid rgba(2, 6, 23, 0.06);">
-                    <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-main); word-break: break-all; margin-bottom: 4px;">
-                        {{ rfile.name }}
+                    <div style="font-size: 0.85rem; font-weight: 600; word-break: break-all; margin-bottom: 4px;">
+                        <a href="{% url 'converter:search' %}?q={{ rfile.name|urlencode }}" style="color: var(--primary); text-decoration: none; transition: color 0.2s;" onmouseover="this.style.color='var(--primary-hover)';this.style.textDecoration='underline'" onmouseout="this.style.color='var(--primary)';this.style.textDecoration='none'">
+                            {{ rfile.name }}
+                        </a>
                     </div>
                     <div style="font-size: 0.7rem; color: var(--text-muted); display: flex; justify-content: space-between;">
                         <span>Converted</span>

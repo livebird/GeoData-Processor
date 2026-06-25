@@ -2359,10 +2359,10 @@ def search(request):
                         
                     # Check if we are in an 'input' or 'output' folder (or test folders)
                     path_parts = os.path.normpath(root).split(os.sep)
-                    is_in_target = any(part in ['input', 'output'] for part in path_parts)
+                    is_in_target = any(part in ['input', 'output', 'outputs', 'raster_output', 'transform_outputs', 'uploads'] for part in path_parts)
                     
                     # Also include files directly from root input directories
-                    is_root_input = root == directory and any(inp in directory for inp in ['test_in', 'test_input', 'test_matrix_in'])
+                    is_root_input = root == directory and any(inp in os.path.basename(directory) for inp in ['test_in', 'test_input', 'test_input_2', 'test_input_3', 'test_matrix_in'])
                     
                     if not is_in_target and not is_root_input:
                         continue
@@ -2437,7 +2437,7 @@ def search(request):
                                     'modified': datetime.datetime.fromtimestamp(stats.st_mtime).strftime('%Y-%m-%d %H:%M'),
                                     'created': datetime.datetime.fromtimestamp(stats.st_ctime).strftime('%Y-%m-%d %H:%M'),
                                     'gdal_info': g_info,
-                                    'content_highlighted': '[Binary file - No preview available]',
+                                    'full_content': '[Binary file - No preview available]',
                                     'is_binary': True,
                                     'match_type': 'Filename'
                                 })
@@ -2463,8 +2463,8 @@ def search(request):
         all_files = []
         for root, dirs, files in os.walk(media_root):
             path_parts = os.path.normpath(root).split(os.sep)
-            # Only include files that are in an 'output' folder
-            if 'output' in path_parts:
+            # Include files in output, outputs, raster_output, transform_outputs folders
+            if any(part in ['output', 'outputs', 'raster_output', 'transform_outputs'] for part in path_parts):
                 for f in files:
                     full_p = os.path.join(root, f)
                     try:
