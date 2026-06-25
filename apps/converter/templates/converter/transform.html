@@ -1,0 +1,1764 @@
+{% extends "converter/base.html" %}
+
+{% block title %}Transform — GIS Batch Converter{% endblock %}
+
+{% block extra_styles %}
+<style>
+    /* ── Transform Page Layout ─────────────────────── */
+    .transform-layout {
+        display: flex;
+        gap: 1.5rem;
+        min-height: calc(100vh - 130px);
+        align-items: flex-start;
+    }
+
+    /* ── Transform Sidebar ────────────────────────── */
+    .transform-sidebar {
+        width: 310px;
+        flex-shrink: 0;
+        position: sticky;
+        top: 1.5rem;
+        background: rgba(255,255,255,0.95);
+        backdrop-filter: blur(12px);
+        border-radius: 18px;
+        border: 1px solid rgba(15,23,42,0.07);
+        box-shadow: 0 20px 48px -20px rgba(15,23,42,0.18);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        max-height: calc(100vh - 110px);
+    }
+
+    .ts-header {
+        padding: 1.25rem 1.25rem 1rem;
+        background: linear-gradient(135deg, #0c1222 0%, #0d9488 200%);
+        color: #fff;
+    }
+
+    .ts-header-title {
+        font-size: 1.05rem;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        margin-bottom: 0.3rem;
+    }
+
+    .ts-header-title svg {
+        width: 20px;
+        height: 20px;
+        opacity: 0.9;
+    }
+
+    .ts-header-sub {
+        font-size: 0.75rem;
+        opacity: 0.7;
+        font-weight: 400;
+    }
+
+    .ts-tools-list {
+        overflow-y: auto;
+        flex: 1;
+        padding: 0.75rem;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(15,23,42,0.1) transparent;
+    }
+
+    .ts-tools-list::-webkit-scrollbar { width: 5px; }
+    .ts-tools-list::-webkit-scrollbar-thumb { background: rgba(15,23,42,0.12); border-radius: 4px; }
+
+    .ts-tool-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        width: 100%;
+        padding: 0.8rem 1rem;
+        border: none;
+        border-radius: 12px;
+        background: transparent;
+        cursor: pointer;
+        text-align: left;
+        font-family: inherit;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--text-main);
+        transition: all 0.18s ease;
+        margin-bottom: 2px;
+        position: relative;
+    }
+
+    .ts-tool-btn:hover {
+        background: rgba(13,148,136,0.07);
+        color: var(--primary);
+        transform: translateX(3px);
+    }
+
+    .ts-tool-btn.active {
+        background: linear-gradient(135deg, rgba(13,148,136,0.12) 0%, rgba(99,102,241,0.06) 100%);
+        color: var(--primary);
+        box-shadow: inset 0 0 0 1.5px rgba(13,148,136,0.2);
+    }
+
+    .ts-tool-btn.active::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 20%;
+        height: 60%;
+        width: 3px;
+        border-radius: 3px;
+        background: var(--primary);
+    }
+
+    .ts-tool-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 9px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        transition: all 0.2s ease;
+    }
+
+    .ts-tool-icon svg {
+        width: 17px;
+        height: 17px;
+        stroke-width: 2;
+    }
+
+    .icon-clip     { background: rgba(99,102,241,0.1);  color: #6366f1; }
+    .icon-simplify { background: rgba(234,179,8,0.1);   color: #ca8a04; }
+    .icon-buffer   { background: rgba(59,130,246,0.1);  color: #3b82f6; }
+    .icon-reproject{ background: rgba(168,85,247,0.1);  color: #a855f7; }
+    .icon-fields   { background: rgba(34,197,94,0.1);   color: #16a34a; }
+    .icon-dissolve { background: rgba(239,68,68,0.1);   color: #dc2626; }
+    .icon-geodesic { background: rgba(13,148,136,0.1);  color: #0d9488; }
+    .icon-filter   { background: rgba(249,115,22,0.1);  color: #ea580c; }
+
+    .ts-tool-info { flex: 1; }
+    .ts-tool-name { font-size: 0.875rem; font-weight: 700; line-height: 1; margin-bottom: 3px; }
+    .ts-tool-desc { font-size: 0.7rem; color: var(--text-muted); font-weight: 400; line-height: 1.3; }
+
+    .ts-tool-arrow {
+        width: 16px;
+        height: 16px;
+        opacity: 0.3;
+        flex-shrink: 0;
+        transition: all 0.18s ease;
+    }
+
+    .ts-tool-btn:hover .ts-tool-arrow,
+    .ts-tool-btn.active .ts-tool-arrow {
+        opacity: 1;
+        transform: translateX(2px);
+    }
+
+    /* ── Main Panel ───────────────────────────────── */
+    .transform-main {
+        flex: 1;
+        min-width: 0;
+    }
+
+    /* ── Welcome Card ─────────────────────────────── */
+    .transform-welcome {
+        background: rgba(255,255,255,0.92);
+        backdrop-filter: blur(10px);
+        border-radius: 18px;
+        border: 1px solid rgba(15,23,42,0.07);
+        box-shadow: 0 8px 32px -12px rgba(15,23,42,0.12);
+        padding: 3rem 2rem;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .transform-welcome-icon {
+        width: 72px;
+        height: 72px;
+        border-radius: 20px;
+        background: linear-gradient(135deg, rgba(13,148,136,0.1), rgba(99,102,241,0.1));
+        border: 1.5px solid rgba(13,148,136,0.15);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .transform-welcome-icon svg {
+        width: 36px;
+        height: 36px;
+        color: var(--primary);
+    }
+
+    .transform-welcome h2 {
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: var(--text-main);
+        letter-spacing: -0.02em;
+    }
+
+    .transform-welcome p {
+        color: var(--text-muted);
+        font-size: 0.9rem;
+        max-width: 420px;
+        line-height: 1.6;
+    }
+
+    .feature-pills {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        justify-content: center;
+        margin-top: 0.5rem;
+    }
+
+    .feature-pill {
+        padding: 0.35rem 0.85rem;
+        border-radius: 99px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        background: rgba(13,148,136,0.08);
+        color: var(--primary);
+        border: 1px solid rgba(13,148,136,0.15);
+    }
+
+    /* ── Tool Panel Card ──────────────────────────── */
+    .tool-panel {
+        display: none;
+        background: rgba(255,255,255,0.95);
+        backdrop-filter: blur(10px);
+        border-radius: 18px;
+        border: 1px solid rgba(15,23,42,0.07);
+        box-shadow: 0 8px 32px -12px rgba(15,23,42,0.12);
+        overflow: hidden;
+        animation: slideInPanel 0.3s var(--ease-out);
+    }
+
+    .tool-panel.visible { display: block; }
+
+    @keyframes slideInPanel {
+        from { opacity: 0; transform: translateY(12px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .panel-header {
+        padding: 1.5rem 1.75rem;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        background: linear-gradient(135deg, rgba(13,148,136,0.04), transparent);
+    }
+
+    .panel-icon {
+        width: 46px;
+        height: 46px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .panel-icon svg {
+        width: 22px;
+        height: 22px;
+        stroke-width: 2;
+    }
+
+    .panel-title { font-size: 1.2rem; font-weight: 800; color: var(--text-main); letter-spacing: -0.02em; }
+    .panel-subtitle { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
+
+    .panel-body { padding: 1.75rem; }
+
+    /* ── Form Groups ──────────────────────────────── */
+    .form-group {
+        margin-bottom: 1.25rem;
+    }
+
+    .form-label {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: var(--text-main);
+        margin-bottom: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .form-label .badge {
+        padding: 2px 7px;
+        font-size: 0.65rem;
+        border-radius: 99px;
+        font-weight: 600;
+        text-transform: none;
+        letter-spacing: 0;
+        background: rgba(13,148,136,0.1);
+        color: var(--primary);
+    }
+
+    .form-input,
+    .form-select,
+    .form-textarea {
+        width: 100%;
+        padding: 0.7rem 1rem;
+        border: 1.5px solid rgba(15,23,42,0.1);
+        border-radius: 10px;
+        font-size: 0.875rem;
+        font-family: inherit;
+        color: var(--text-main);
+        background: rgba(248,250,252,0.8);
+        transition: all 0.2s ease;
+        outline: none;
+    }
+
+    .form-input:focus,
+    .form-select:focus,
+    .form-textarea:focus {
+        border-color: var(--primary);
+        background: #fff;
+        box-shadow: 0 0 0 3px rgba(13,148,136,0.12);
+    }
+
+    .form-textarea { resize: vertical; min-height: 80px; }
+
+    .form-hint {
+        margin-top: 0.4rem;
+        font-size: 0.72rem;
+        color: var(--text-muted);
+        line-height: 1.5;
+    }
+
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+
+    /* ── Field Operations Sub-Tabs ────────────────── */
+    .sub-tabs {
+        display: flex;
+        gap: 0.35rem;
+        background: rgba(15,23,42,0.04);
+        padding: 0.3rem;
+        border-radius: 10px;
+        margin-bottom: 1.25rem;
+    }
+
+    .sub-tab-btn {
+        flex: 1;
+        padding: 0.5rem 0.75rem;
+        border: none;
+        background: transparent;
+        border-radius: 8px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        cursor: pointer;
+        font-family: inherit;
+        transition: all 0.18s ease;
+    }
+
+    .sub-tab-btn.active {
+        background: #fff;
+        color: var(--primary);
+        box-shadow: 0 2px 8px rgba(15,23,42,0.08);
+    }
+
+    .sub-tab-pane { display: none; }
+    .sub-tab-pane.active { display: block; }
+
+    /* ── Dynamic Rows ─────────────────────────────── */
+    .dynamic-row {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .dynamic-row .form-input { flex: 1; }
+
+    .btn-remove-row {
+        width: 32px;
+        height: 32px;
+        border: 1.5px solid rgba(239,68,68,0.2);
+        border-radius: 8px;
+        background: rgba(239,68,68,0.06);
+        color: #dc2626;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        font-size: 1.1rem;
+        line-height: 1;
+        transition: all 0.15s ease;
+    }
+
+    .btn-remove-row:hover { background: rgba(239,68,68,0.12); }
+
+    .btn-add-row {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.45rem 1rem;
+        border: 1.5px dashed rgba(13,148,136,0.3);
+        border-radius: 8px;
+        background: transparent;
+        color: var(--primary);
+        font-size: 0.78rem;
+        font-weight: 600;
+        cursor: pointer;
+        font-family: inherit;
+        transition: all 0.18s ease;
+        margin-top: 0.25rem;
+    }
+
+    .btn-add-row:hover { background: rgba(13,148,136,0.06); border-color: rgba(13,148,136,0.5); }
+
+    /* ── Action Footer ────────────────────────────── */
+    .panel-footer {
+        padding: 1.25rem 1.75rem;
+        border-top: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: rgba(248,250,252,0.6);
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+
+    .footer-info {
+        font-size: 0.78rem;
+        color: var(--text-muted);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .footer-info svg { width: 14px; height: 14px; color: var(--primary); }
+
+    .btn-run {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.55rem;
+        padding: 0.7rem 1.5rem;
+        background: linear-gradient(135deg, var(--primary) 0%, #0f766e 100%);
+        color: #fff;
+        border: none;
+        border-radius: 10px;
+        font-size: 0.875rem;
+        font-weight: 700;
+        cursor: pointer;
+        font-family: inherit;
+        transition: all 0.2s ease;
+        box-shadow: 0 4px 12px rgba(13,148,136,0.25);
+    }
+
+    .btn-run:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 8px 20px rgba(13,148,136,0.3);
+    }
+
+    .btn-run:active { transform: translateY(0); }
+
+    .btn-run svg { width: 16px; height: 16px; }
+
+    .btn-run.loading { opacity: 0.7; pointer-events: none; }
+
+    /* ── Result Box ───────────────────────────────── */
+    .result-box {
+        display: none;
+        margin: 1.25rem 1.75rem;
+        border-radius: 12px;
+        border: 1.5px solid;
+        overflow: hidden;
+        animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    .result-box.success { border-color: rgba(16,185,129,0.25); background: rgba(16,185,129,0.05); }
+    .result-box.error   { border-color: rgba(239,68,68,0.25);  background: rgba(239,68,68,0.05);  }
+
+    .result-box-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.9rem 1.2rem;
+    }
+
+    .result-box-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .result-box.success .result-box-icon { background: rgba(16,185,129,0.12); color: #059669; }
+    .result-box.error   .result-box-icon { background: rgba(239,68,68,0.12);  color: #dc2626; }
+
+    .result-box-icon svg { width: 16px; height: 16px; stroke-width: 2.5; }
+
+    .result-box-title { font-size: 0.875rem; font-weight: 700; }
+    .result-box.success .result-box-title { color: #065f46; }
+    .result-box.error   .result-box-title { color: #991b1b; }
+
+    .result-box-body { padding: 0 1.2rem 1rem; }
+
+    .result-stat-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.75rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .result-stat {
+        background: rgba(255,255,255,0.7);
+        border-radius: 8px;
+        padding: 0.6rem 0.8rem;
+        text-align: center;
+    }
+
+    .result-stat-value { font-size: 1.1rem; font-weight: 800; color: var(--text-main); }
+    .result-stat-label { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+
+    .result-download-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.55rem 1.1rem;
+        background: var(--primary);
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.8rem;
+        font-weight: 700;
+        cursor: pointer;
+        font-family: inherit;
+        text-decoration: none;
+        transition: all 0.15s ease;
+    }
+
+    .result-download-btn:hover { background: var(--primary-hover); }
+    .result-download-btn svg { width: 14px; height: 14px; }
+
+    .result-error-msg {
+        font-size: 0.82rem;
+        color: #991b1b;
+        line-height: 1.5;
+    }
+
+    /* ── Progress indicator ───────────────────────── */
+    .progress-bar-wrap {
+        display: none;
+        height: 3px;
+        background: rgba(13,148,136,0.1);
+        border-radius: 0 0 4px 4px;
+        overflow: hidden;
+    }
+
+    .progress-bar-fill {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, var(--primary), #6366f1);
+        border-radius: 3px;
+        transition: width 0.4s ease;
+        animation: progressPulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes progressPulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.6; }
+    }
+
+    /* ── Upload Zone ──────────────────────────────── */
+    .upload-zone {
+        border: 2px dashed rgba(13,148,136,0.25);
+        border-radius: 12px;
+        padding: 1.5rem;
+        text-align: center;
+        background: rgba(13,148,136,0.02);
+        cursor: pointer;
+        transition: all 0.2s ease;
+        position: relative;
+    }
+
+    .upload-zone:hover, .upload-zone.drag-over {
+        border-color: var(--primary);
+        background: rgba(13,148,136,0.05);
+    }
+
+    .upload-zone input[type="file"] {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        cursor: pointer;
+        width: 100%;
+        height: 100%;
+    }
+
+    .upload-zone-icon svg { width: 32px; height: 32px; color: var(--primary); opacity: 0.5; margin-bottom: 0.5rem; }
+    .upload-zone-text { font-size: 0.82rem; color: var(--text-muted); }
+    .upload-zone-text strong { color: var(--primary); }
+    .upload-zone-filename {
+        margin-top: 0.5rem;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--primary);
+        display: none;
+    }
+
+    /* ── Info callout ─────────────────────────────── */
+    .info-callout {
+        display: flex;
+        gap: 0.75rem;
+        padding: 0.85rem 1rem;
+        background: rgba(56,189,248,0.07);
+        border: 1px solid rgba(56,189,248,0.2);
+        border-radius: 10px;
+        margin-bottom: 1.25rem;
+        font-size: 0.78rem;
+        color: #0c4a6e;
+        line-height: 1.5;
+    }
+
+    .info-callout svg { width: 16px; height: 16px; flex-shrink: 0; color: #0284c7; margin-top: 1px; }
+
+    /* ── Responsive ───────────────────────────────── */
+    @media (max-width: 900px) {
+        .transform-layout { flex-direction: column; }
+        .transform-sidebar { width: 100%; position: static; max-height: none; }
+        .ts-tools-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px; }
+        .form-row { grid-template-columns: 1fr; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="transform-layout">
+
+    <!-- ══ Sidebar ═════════════════════════════════════════ -->
+    <aside class="transform-sidebar" id="transform-sidebar">
+        <div class="ts-header">
+            <div class="ts-header-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                </svg>
+                Transform Tools
+            </div>
+            <div class="ts-header-sub">Geo-operations on your layers</div>
+        </div>
+
+        <nav class="ts-tools-list" id="ts-tools-list">
+
+            <!-- Clip -->
+            <button class="ts-tool-btn active" data-tool="clip" id="btn-clip">
+                <span class="ts-tool-icon icon-clip">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M6 2v6l3.5 2M6 22v-6l3.5-2M18 2v6l-3.5 2M18 22v-6l-3.5-2M9.5 10.5L14.5 13.5M14.5 10.5L9.5 13.5"/>
+                        <circle cx="6" cy="14" r="3"/><circle cx="18" cy="10" r="3"/>
+                    </svg>
+                </span>
+                <span class="ts-tool-info">
+                    <span class="ts-tool-name">Clip</span>
+                    <span class="ts-tool-desc">Boundary polygon ware data cut</span>
+                </span>
+                <svg class="ts-tool-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+
+            <!-- Simplify -->
+            <button class="ts-tool-btn" data-tool="simplify" id="btn-simplify">
+                <span class="ts-tool-icon icon-simplify">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                    </svg>
+                </span>
+                <span class="ts-tool-info">
+                    <span class="ts-tool-name">Simplify</span>
+                    <span class="ts-tool-desc">Geometry vertices decreasing</span>
+                </span>
+                <svg class="ts-tool-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+
+            <!-- Buffer -->
+            <button class="ts-tool-btn" data-tool="buffer" id="btn-buffer">
+                <span class="ts-tool-icon icon-buffer">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
+                    </svg>
+                </span>
+                <span class="ts-tool-info">
+                    <span class="ts-tool-name">Buffer</span>
+                    <span class="ts-tool-desc">Distance zone around geometry</span>
+                </span>
+                <svg class="ts-tool-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+
+            <!-- Reproject -->
+            <button class="ts-tool-btn" data-tool="reproject" id="btn-reproject">
+                <span class="ts-tool-icon icon-reproject">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                    </svg>
+                </span>
+                <span class="ts-tool-info">
+                    <span class="ts-tool-name">Reproject</span>
+                    <span class="ts-tool-desc">EPSG:4326 → EPSG:3857</span>
+                </span>
+                <svg class="ts-tool-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+
+            <!-- Field Operations -->
+            <button class="ts-tool-btn" data-tool="fields" id="btn-fields">
+                <span class="ts-tool-icon icon-fields">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/>
+                    </svg>
+                </span>
+                <span class="ts-tool-info">
+                    <span class="ts-tool-name">Field Operations</span>
+                    <span class="ts-tool-desc">Add / Rename / Delete / Calculate</span>
+                </span>
+                <svg class="ts-tool-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+
+            <!-- Dissolve -->
+            <button class="ts-tool-btn" data-tool="dissolve" id="btn-dissolve">
+                <span class="ts-tool-icon icon-dissolve">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4z"/>
+                        <path d="M14 17h6M17 14v6"/>
+                    </svg>
+                </span>
+                <span class="ts-tool-info">
+                    <span class="ts-tool-name">Dissolve</span>
+                    <span class="ts-tool-desc">Merge features by attribute</span>
+                </span>
+                <svg class="ts-tool-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+
+            <!-- Geodesic -->
+            <button class="ts-tool-btn" data-tool="geodesic" id="btn-geodesic">
+                <span class="ts-tool-icon icon-geodesic">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                    </svg>
+                </span>
+                <span class="ts-tool-info">
+                    <span class="ts-tool-name">Geodesic</span>
+                    <span class="ts-tool-desc">Area / Length on Earth surface</span>
+                </span>
+                <svg class="ts-tool-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+
+            <!-- Filter -->
+            <button class="ts-tool-btn" data-tool="filter" id="btn-filter">
+                <span class="ts-tool-icon icon-filter">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+                    </svg>
+                </span>
+                <span class="ts-tool-info">
+                    <span class="ts-tool-name">Filter</span>
+                    <span class="ts-tool-desc">Attribute query / expression</span>
+                </span>
+                <svg class="ts-tool-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+
+        </nav>
+    </aside>
+
+    <!-- ══ Main Content Area ════════════════════════════════ -->
+    <div class="transform-main">
+
+        <!-- Welcome (shown by default) -->
+        <div class="transform-welcome" id="panel-welcome">
+            <div class="transform-welcome-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                </svg>
+            </div>
+            <h2>Transform Your Geo Data</h2>
+            <p>Upload any vector file (GeoJSON, Shapefile ZIP, GeoPackage, KML…) and apply powerful spatial transformations. Select a tool from the sidebar to get started.</p>
+            <div class="feature-pills">
+                <span class="feature-pill">✂ Clip</span>
+                <span class="feature-pill">〰 Simplify</span>
+                <span class="feature-pill">◎ Buffer</span>
+                <span class="feature-pill">↺ Reproject</span>
+                <span class="feature-pill">⊞ Fields</span>
+                <span class="feature-pill">⊕ Dissolve</span>
+                <span class="feature-pill">🌐 Geodesic</span>
+                <span class="feature-pill">▽ Filter</span>
+            </div>
+        </div>
+
+        <!-- ══ CLIP PANEL ═══════════════════════════════════ -->
+        <div class="tool-panel" id="panel-clip">
+            <div class="panel-header">
+                <span class="panel-icon icon-clip">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M6 2v6l3.5 2M6 22v-6l3.5-2M18 2v6l-3.5 2M18 22v-6l-3.5-2M9.5 10.5L14.5 13.5M14.5 10.5L9.5 13.5"/>
+                        <circle cx="6" cy="14" r="3"/><circle cx="18" cy="10" r="3"/>
+                    </svg>
+                </span>
+                <div>
+                    <div class="panel-title">Clip</div>
+                    <div class="panel-subtitle">Cut input layer to a boundary polygon — e.g. Gujarat Roads → Surat Roads</div>
+                </div>
+            </div>
+
+            <div class="progress-bar-wrap" id="clip-progress"><div class="progress-bar-fill"></div></div>
+
+            <div class="panel-body">
+                <div class="info-callout">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <span>Input layer is clipped to the exact extent of your boundary file. Features that cross the boundary are trimmed.</span>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Input Layer <span class="badge">Vector</span></label>
+                    <div class="upload-zone" id="clip-input-zone">
+                        <input type="file" id="clip-input-file" accept=".geojson,.json,.gpkg,.kml,.zip,.fgb">
+                        <div class="upload-zone-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+                        <div class="upload-zone-text"><strong>Click or drag</strong> your input layer here</div>
+                        <div class="upload-zone-filename" id="clip-input-name"></div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Boundary / Clip Layer <span class="badge">Polygon</span></label>
+                    <div class="upload-zone" id="clip-boundary-zone">
+                        <input type="file" id="clip-boundary-file" accept=".geojson,.json,.gpkg,.kml,.zip,.fgb">
+                        <div class="upload-zone-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg></div>
+                        <div class="upload-zone-text"><strong>Click or drag</strong> your boundary polygon here</div>
+                        <div class="upload-zone-filename" id="clip-boundary-name"></div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Boundary Handling</label>
+                    <select class="form-select" id="clip-boundary-handling">
+                        <option value="clip">Clip — trim features at boundary (recommended)</option>
+                        <option value="drop">Drop — remove features that cross the boundary</option>
+                    </select>
+                    <div class="form-hint">Use <em>Clip</em> to get exact boundary geometry. Use <em>Drop</em> to keep only fully-contained features.</div>
+                </div>
+            </div>
+
+            <div id="clip-result"></div>
+
+            <div class="panel-footer">
+                <span class="footer-info">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
+                    GeoPandas · gpd.clip()
+                </span>
+                <button class="btn-run" id="clip-run-btn" onclick="runTransform('clip')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    Run Clip
+                </button>
+            </div>
+        </div>
+
+        <!-- ══ SIMPLIFY PANEL ════════════════════════════════ -->
+        <div class="tool-panel" id="panel-simplify">
+            <div class="panel-header">
+                <span class="panel-icon icon-simplify">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                    </svg>
+                </span>
+                <div>
+                    <div class="panel-title">Simplify</div>
+                    <div class="panel-subtitle">Reduce geometry vertices — e.g. 50,000 vertices → 500 vertices</div>
+                </div>
+            </div>
+
+            <div class="progress-bar-wrap" id="simplify-progress"><div class="progress-bar-fill"></div></div>
+
+            <div class="panel-body">
+                <div class="info-callout">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <span>Simplification removes unnecessary vertices while preserving overall shape. Higher tolerance = fewer vertices but less accuracy.</span>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Input Layer <span class="badge">Vector</span></label>
+                    <div class="upload-zone">
+                        <input type="file" id="simplify-input-file" accept=".geojson,.json,.gpkg,.kml,.zip,.fgb">
+                        <div class="upload-zone-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+                        <div class="upload-zone-text"><strong>Click or drag</strong> your vector file here</div>
+                        <div class="upload-zone-filename" id="simplify-input-name"></div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Tolerance</label>
+                        <input type="number" class="form-input" id="simplify-tolerance" value="0.0001" step="0.0001" min="0" placeholder="e.g. 0.001">
+                        <div class="form-hint">In layer's CRS units. For EPSG:4326, ~0.0001° ≈ 11m.</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Algorithm</label>
+                        <select class="form-select" id="simplify-algorithm">
+                            <option value="douglas-peucker">Douglas-Peucker (default)</option>
+                            <option value="topology-preserving">Topology-Preserving</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" style="display:flex;align-items:center;gap:.5rem;">
+                        <input type="checkbox" id="simplify-preserve-topology" checked style="accent-color:var(--primary);width:16px;height:16px;">
+                        Preserve Topology
+                    </label>
+                    <div class="form-hint">Prevents self-intersections and collapsed geometries during simplification.</div>
+                </div>
+            </div>
+
+            <div id="simplify-result"></div>
+
+            <div class="panel-footer">
+                <span class="footer-info">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                    gdf.geometry.simplify(tolerance)
+                </span>
+                <button class="btn-run" id="simplify-run-btn" onclick="runTransform('simplify')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    Run Simplify
+                </button>
+            </div>
+        </div>
+
+        <!-- ══ BUFFER PANEL ══════════════════════════════════ -->
+        <div class="tool-panel" id="panel-buffer">
+            <div class="panel-header">
+                <span class="panel-icon icon-buffer">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
+                    </svg>
+                </span>
+                <div>
+                    <div class="panel-title">Buffer</div>
+                    <div class="panel-subtitle">Create distance zone around geometry — e.g. Road Centerline → 50m Buffer</div>
+                </div>
+            </div>
+
+            <div class="progress-bar-wrap" id="buffer-progress"><div class="progress-bar-fill"></div></div>
+
+            <div class="panel-body">
+                <div class="info-callout">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <span>For geographic CRS (EPSG:4326), buffer distance is in degrees. Reproject to a metric CRS first for accurate metre-based buffers.</span>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Input Layer <span class="badge">Vector</span></label>
+                    <div class="upload-zone">
+                        <input type="file" id="buffer-input-file" accept=".geojson,.json,.gpkg,.kml,.zip,.fgb">
+                        <div class="upload-zone-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+                        <div class="upload-zone-text"><strong>Click or drag</strong> your vector file here</div>
+                        <div class="upload-zone-filename" id="buffer-input-name"></div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Buffer Distance</label>
+                        <input type="number" class="form-input" id="buffer-distance" value="50" step="1" min="0" placeholder="e.g. 50">
+                        <div class="form-hint">In CRS units (metres for projected, degrees for geographic).</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Resolution (segments)</label>
+                        <input type="number" class="form-input" id="buffer-resolution" value="16" step="1" min="4" max="64" placeholder="16">
+                        <div class="form-hint">Segments per quarter-circle. More = smoother but larger file.</div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Cap Style</label>
+                    <select class="form-select" id="buffer-cap">
+                        <option value="round">Round (default)</option>
+                        <option value="flat">Flat</option>
+                        <option value="square">Square</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="buffer-result"></div>
+
+            <div class="panel-footer">
+                <span class="footer-info">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>
+                    gdf.geometry.buffer(distance)
+                </span>
+                <button class="btn-run" id="buffer-run-btn" onclick="runTransform('buffer')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    Run Buffer
+                </button>
+            </div>
+        </div>
+
+        <!-- ══ REPROJECT PANEL ══════════════════════════════ -->
+        <div class="tool-panel" id="panel-reproject">
+            <div class="panel-header">
+                <span class="panel-icon icon-reproject">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                    </svg>
+                </span>
+                <div>
+                    <div class="panel-title">Reproject</div>
+                    <div class="panel-subtitle">Transform coordinates between coordinate reference systems</div>
+                </div>
+            </div>
+
+            <div class="progress-bar-wrap" id="reproject-progress"><div class="progress-bar-fill"></div></div>
+
+            <div class="panel-body">
+                <div class="form-group">
+                    <label class="form-label">Input Layer <span class="badge">Vector</span></label>
+                    <div class="upload-zone">
+                        <input type="file" id="reproject-input-file" accept=".geojson,.json,.gpkg,.kml,.zip,.fgb">
+                        <div class="upload-zone-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+                        <div class="upload-zone-text"><strong>Click or drag</strong> your vector file here</div>
+                        <div class="upload-zone-filename" id="reproject-input-name"></div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Source CRS</label>
+                        <input type="text" class="form-input" id="reproject-source-crs" placeholder="e.g. EPSG:4326 (auto-detect)">
+                        <div class="form-hint">Leave blank to auto-detect from file.</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Target CRS <span class="badge">Required</span></label>
+                        <input type="text" class="form-input" id="reproject-target-crs" value="EPSG:3857" placeholder="e.g. EPSG:3857">
+                        <div class="form-hint">Any valid EPSG or PROJ string.</div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Common Targets</label>
+                    <div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.3rem;">
+                        <button type="button" class="feature-pill" style="cursor:pointer;border:none;" onclick="document.getElementById('reproject-target-crs').value='EPSG:4326'">EPSG:4326 (WGS84)</button>
+                        <button type="button" class="feature-pill" style="cursor:pointer;border:none;" onclick="document.getElementById('reproject-target-crs').value='EPSG:3857'">EPSG:3857 (Web Mercator)</button>
+                        <button type="button" class="feature-pill" style="cursor:pointer;border:none;" onclick="document.getElementById('reproject-target-crs').value='EPSG:32643'">EPSG:32643 (UTM 43N)</button>
+                        <button type="button" class="feature-pill" style="cursor:pointer;border:none;" onclick="document.getElementById('reproject-target-crs').value='EPSG:32644'">EPSG:32644 (UTM 44N)</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="reproject-result"></div>
+
+            <div class="panel-footer">
+                <span class="footer-info">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/></svg>
+                    gdf.to_crs("EPSG:3857")
+                </span>
+                <button class="btn-run" id="reproject-run-btn" onclick="runTransform('reproject')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    Run Reproject
+                </button>
+            </div>
+        </div>
+
+        <!-- ══ FIELDS PANEL ══════════════════════════════════ -->
+        <div class="tool-panel" id="panel-fields">
+            <div class="panel-header">
+                <span class="panel-icon icon-fields">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/>
+                    </svg>
+                </span>
+                <div>
+                    <div class="panel-title">Field Operations</div>
+                    <div class="panel-subtitle">Add, rename, delete, or calculate attribute fields</div>
+                </div>
+            </div>
+
+            <div class="progress-bar-wrap" id="fields-progress"><div class="progress-bar-fill"></div></div>
+
+            <div class="panel-body">
+                <div class="form-group">
+                    <label class="form-label">Input Layer <span class="badge">Vector</span></label>
+                    <div class="upload-zone">
+                        <input type="file" id="fields-input-file" accept=".geojson,.json,.gpkg,.kml,.zip,.fgb">
+                        <div class="upload-zone-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+                        <div class="upload-zone-text"><strong>Click or drag</strong> your vector file here</div>
+                        <div class="upload-zone-filename" id="fields-input-name"></div>
+                    </div>
+                </div>
+
+                <div class="sub-tabs">
+                    <button class="sub-tab-btn active" onclick="switchSubTab('fields','add',this)">➕ Add Field</button>
+                    <button class="sub-tab-btn" onclick="switchSubTab('fields','rename',this)">✏ Rename</button>
+                    <button class="sub-tab-btn" onclick="switchSubTab('fields','delete',this)">🗑 Delete</button>
+                    <button class="sub-tab-btn" onclick="switchSubTab('fields','select',this)">☑ Select</button>
+                </div>
+
+                <!-- Add Field -->
+                <div class="sub-tab-pane active" id="fields-pane-add">
+                    <div id="add-fields-container">
+                        <div class="dynamic-row">
+                            <input type="text" class="form-input" placeholder="Field name" style="max-width:140px;">
+                            <input type="text" class="form-input" placeholder="Value (e.g. active)">
+                            <button type="button" class="btn-remove-row" onclick="removeRow(this)">×</button>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-add-row" onclick="addFieldRow('add-fields-container', ['Field name','Value'])">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        Add another field
+                    </button>
+                </div>
+
+                <!-- Rename Field -->
+                <div class="sub-tab-pane" id="fields-pane-rename">
+                    <div id="rename-fields-container">
+                        <div class="dynamic-row">
+                            <input type="text" class="form-input" placeholder="Old name">
+                            <span style="flex-shrink:0;color:var(--text-muted)">→</span>
+                            <input type="text" class="form-input" placeholder="New name">
+                            <button type="button" class="btn-remove-row" onclick="removeRow(this)">×</button>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-add-row" onclick="addRenameRow()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        Add rename rule
+                    </button>
+                </div>
+
+                <!-- Delete Fields -->
+                <div class="sub-tab-pane" id="fields-pane-delete">
+                    <div id="delete-fields-container">
+                        <div class="dynamic-row">
+                            <input type="text" class="form-input" placeholder="Field name to delete">
+                            <button type="button" class="btn-remove-row" onclick="removeRow(this)">×</button>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-add-row" onclick="addFieldRow('delete-fields-container', ['Field name to delete'])">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        Add field
+                    </button>
+                    <div class="form-hint" style="margin-top:.75rem;">Fields listed here will be permanently removed from the output.</div>
+                </div>
+
+                <!-- Select Fields -->
+                <div class="sub-tab-pane" id="fields-pane-select">
+                    <div class="form-group" style="margin-bottom:.5rem">
+                        <label class="form-label">Fields to Keep (comma-separated)</label>
+                        <input type="text" class="form-input" id="fields-select-list" placeholder="e.g. name, road_type, status">
+                        <div class="form-hint">Only these fields will be retained in the output. Geometry is always preserved.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="fields-result"></div>
+
+            <div class="panel-footer">
+                <span class="footer-info">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+                    gdf["field"] = value · gdf.rename() · gdf.drop()
+                </span>
+                <button class="btn-run" id="fields-run-btn" onclick="runTransform('fields')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    Apply Operations
+                </button>
+            </div>
+        </div>
+
+        <!-- ══ DISSOLVE PANEL ════════════════════════════════ -->
+        <div class="tool-panel" id="panel-dissolve">
+            <div class="panel-header">
+                <span class="panel-icon icon-dissolve">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4z"/>
+                        <path d="M14 17h6M17 14v6"/>
+                    </svg>
+                </span>
+                <div>
+                    <div class="panel-title">Dissolve</div>
+                    <div class="panel-subtitle">Merge features sharing a common attribute — e.g. Surat + Navsari + Valsad → South Gujarat</div>
+                </div>
+            </div>
+
+            <div class="progress-bar-wrap" id="dissolve-progress"><div class="progress-bar-fill"></div></div>
+
+            <div class="panel-body">
+                <div class="info-callout">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <span>Adjacent features with the same value in the <em>dissolve field</em> will be merged into a single geometry.</span>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Input Layer <span class="badge">Vector</span></label>
+                    <div class="upload-zone">
+                        <input type="file" id="dissolve-input-file" accept=".geojson,.json,.gpkg,.kml,.zip,.fgb">
+                        <div class="upload-zone-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+                        <div class="upload-zone-text"><strong>Click or drag</strong> your vector file here</div>
+                        <div class="upload-zone-filename" id="dissolve-input-name"></div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Dissolve Field</label>
+                        <input type="text" class="form-input" id="dissolve-field" placeholder="e.g. region">
+                        <div class="form-hint">Leave blank to dissolve all features into one.</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Aggregate Function</label>
+                        <select class="form-select" id="dissolve-aggfunc">
+                            <option value="first">First value</option>
+                            <option value="sum">Sum</option>
+                            <option value="mean">Mean</option>
+                            <option value="count">Count</option>
+                            <option value="min">Min</option>
+                            <option value="max">Max</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div id="dissolve-result"></div>
+
+            <div class="panel-footer">
+                <span class="footer-info">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h6v6H4zM14 4h6v6h-6z"/></svg>
+                    gdf.dissolve(by="region")
+                </span>
+                <button class="btn-run" id="dissolve-run-btn" onclick="runTransform('dissolve')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    Run Dissolve
+                </button>
+            </div>
+        </div>
+
+        <!-- ══ GEODESIC PANEL ════════════════════════════════ -->
+        <div class="tool-panel" id="panel-geodesic">
+            <div class="panel-header">
+                <span class="panel-icon icon-geodesic">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                    </svg>
+                </span>
+                <div>
+                    <div class="panel-title">Geodesic Calculations</div>
+                    <div class="panel-subtitle">Accurate Earth-surface area, length, and perimeter using WGS84 ellipsoid</div>
+                </div>
+            </div>
+
+            <div class="progress-bar-wrap" id="geodesic-progress"><div class="progress-bar-fill"></div></div>
+
+            <div class="panel-body">
+                <div class="info-callout">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <span><strong>geometry.area is NOT accurate on Earth!</strong> Use pyproj.Geod for geodesic area/perimeter — results are added as <code>area_sqm</code> and <code>length_m</code> fields.</span>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Input Layer <span class="badge">Vector</span></label>
+                    <div class="upload-zone">
+                        <input type="file" id="geodesic-input-file" accept=".geojson,.json,.gpkg,.kml,.zip,.fgb">
+                        <div class="upload-zone-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+                        <div class="upload-zone-text"><strong>Click or drag</strong> your vector file here</div>
+                        <div class="upload-zone-filename" id="geodesic-input-name"></div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Ellipsoid</label>
+                        <select class="form-select" id="geodesic-ellipsoid">
+                            <option value="WGS84">WGS84 (default)</option>
+                            <option value="GRS80">GRS80</option>
+                            <option value="clrk66">Clarke 1866</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Computation Mode</label>
+                        <select class="form-select" id="geodesic-mode">
+                            <option value="geodesic">Geodesic (Earth surface)</option>
+                            <option value="cartesian">Cartesian (projected CRS)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div id="geodesic-result"></div>
+
+            <div class="panel-footer">
+                <span class="footer-info">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>
+                    pyproj.Geod(ellps="WGS84").geometry_area_perimeter()
+                </span>
+                <button class="btn-run" id="geodesic-run-btn" onclick="runTransform('geodesic')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    Calculate Metrics
+                </button>
+            </div>
+        </div>
+
+        <!-- ══ FILTER PANEL ══════════════════════════════════ -->
+        <div class="tool-panel" id="panel-filter">
+            <div class="panel-header">
+                <span class="panel-icon icon-filter">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+                    </svg>
+                </span>
+                <div>
+                    <div class="panel-title">Filter</div>
+                    <div class="panel-subtitle">Query and extract features using attribute expressions</div>
+                </div>
+            </div>
+
+            <div class="progress-bar-wrap" id="filter-progress"><div class="progress-bar-fill"></div></div>
+
+            <div class="panel-body">
+                <div class="form-group">
+                    <label class="form-label">Input Layer <span class="badge">Vector</span></label>
+                    <div class="upload-zone">
+                        <input type="file" id="filter-input-file" accept=".geojson,.json,.gpkg,.kml,.zip,.fgb">
+                        <div class="upload-zone-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+                        <div class="upload-zone-text"><strong>Click or drag</strong> your vector file here</div>
+                        <div class="upload-zone-filename" id="filter-input-name"></div>
+                    </div>
+                </div>
+
+                <div class="sub-tabs">
+                    <button class="sub-tab-btn active" onclick="switchSubTab('filter','simple',this)">Simple</button>
+                    <button class="sub-tab-btn" onclick="switchSubTab('filter','expression',this)">Expression</button>
+                </div>
+
+                <!-- Simple Filter -->
+                <div class="sub-tab-pane active" id="filter-pane-simple">
+                    <div id="filter-conditions-container">
+                        <div class="dynamic-row" style="flex-wrap:wrap;gap:.4rem;">
+                            <input type="text" class="form-input" placeholder="Field name" style="min-width:100px;flex:1;">
+                            <select class="form-select" style="min-width:90px;flex:.8;">
+                                <option value="==">==(equals)</option>
+                                <option value="!=">!=(not equal)</option>
+                                <option value=">">&gt; (greater)</option>
+                                <option value="<">&lt; (less)</option>
+                                <option value=">=">&gt;= (gte)</option>
+                                <option value="<=">&lt;= (lte)</option>
+                                <option value="contains">contains</option>
+                                <option value="startswith">starts with</option>
+                            </select>
+                            <input type="text" class="form-input" placeholder="Value" style="min-width:80px;flex:1;">
+                            <button type="button" class="btn-remove-row" onclick="removeRow(this)">×</button>
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:.5rem;margin-top:.35rem;align-items:center;">
+                        <button type="button" class="btn-add-row" onclick="addFilterRow()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            Add condition
+                        </button>
+                        <select class="form-select" id="filter-logic" style="width:auto;min-width:80px;">
+                            <option value="AND">AND</option>
+                            <option value="OR">OR</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Expression Filter -->
+                <div class="sub-tab-pane" id="filter-pane-expression">
+                    <div class="form-group">
+                        <label class="form-label">Python / Pandas Expression</label>
+                        <textarea class="form-textarea" id="filter-expression" placeholder="e.g. type == 'highway' and lanes > 2"></textarea>
+                        <div class="form-hint">Valid Python boolean expressions on column names. Use <code>and</code>, <code>or</code>, <code>not</code>. String values must be quoted.</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Example Expressions</label>
+                        <div style="display:flex;flex-wrap:wrap;gap:.4rem;">
+                            <button type="button" class="feature-pill" style="cursor:pointer;border:none;" onclick="document.getElementById('filter-expression').value=&quot;status == \'active\'&quot;">status == 'active'</button>
+                            <button type="button" class="feature-pill" style="cursor:pointer;border:none;" onclick="document.getElementById('filter-expression').value='area_sqm > 10000'">area_sqm &gt; 10000</button>
+                            <button type="button" class="feature-pill" style="cursor:pointer;border:none;" onclick="document.getElementById('filter-expression').value=&quot;district == \'Surat\'&quot;">district == 'Surat'</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="filter-result"></div>
+
+            <div class="panel-footer">
+                <span class="footer-info">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                    gdf[gdf["field"] == "value"]
+                </span>
+                <button class="btn-run" id="filter-run-btn" onclick="runTransform('filter')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    Apply Filter
+                </button>
+            </div>
+        </div>
+
+    </div><!-- /transform-main -->
+</div><!-- /transform-layout -->
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// ── Tool Switching ─────────────────────────────────────────────
+const allTools = ['clip','simplify','buffer','reproject','fields','dissolve','geodesic','filter'];
+
+function showTool(tool) {
+    // Hide welcome
+    document.getElementById('panel-welcome').style.display = 'none';
+
+    // Update sidebar buttons
+    document.querySelectorAll('.ts-tool-btn').forEach(btn => btn.classList.remove('active'));
+    const activeBtn = document.getElementById('btn-' + tool);
+    if (activeBtn) activeBtn.classList.add('active');
+
+    // Hide all panels, show target
+    allTools.forEach(t => {
+        const p = document.getElementById('panel-' + t);
+        if (p) { p.classList.remove('visible'); }
+    });
+
+    const panel = document.getElementById('panel-' + tool);
+    if (panel) {
+        panel.classList.add('visible');
+        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
+// Sidebar button click listeners
+document.querySelectorAll('.ts-tool-btn').forEach(btn => {
+    btn.addEventListener('click', () => showTool(btn.dataset.tool));
+});
+
+// Show clip by default
+showTool('clip');
+
+// ── Sub-tab switching ──────────────────────────────────────────
+function switchSubTab(panel, pane, clickedBtn) {
+    const parent = clickedBtn.closest('.panel-body');
+    parent.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.remove('active'));
+    clickedBtn.classList.add('active');
+    parent.querySelectorAll('.sub-tab-pane').forEach(p => p.classList.remove('active'));
+    const target = document.getElementById(panel + '-pane-' + pane);
+    if (target) target.classList.add('active');
+}
+
+// ── File upload zone display ───────────────────────────────────
+document.querySelectorAll('.upload-zone input[type="file"]').forEach(input => {
+    input.addEventListener('change', function() {
+        if (this.files && this.files[0]) {
+            const nameEl = this.closest('.upload-zone').querySelector('.upload-zone-filename');
+            if (nameEl) {
+                nameEl.textContent = '📄 ' + this.files[0].name;
+                nameEl.style.display = 'block';
+            }
+        }
+    });
+});
+
+// Drag-over styling
+document.querySelectorAll('.upload-zone').forEach(zone => {
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e => {
+        e.preventDefault();
+        zone.classList.remove('drag-over');
+        const input = zone.querySelector('input[type="file"]');
+        if (input && e.dataTransfer.files.length) {
+            input.files = e.dataTransfer.files;
+            input.dispatchEvent(new Event('change'));
+        }
+    });
+});
+
+// ── Dynamic row helpers ────────────────────────────────────────
+function removeRow(btn) {
+    const container = btn.closest('.dynamic-row').parentElement;
+    const row = btn.closest('.dynamic-row');
+    if (container.querySelectorAll('.dynamic-row').length > 1) {
+        row.remove();
+    }
+}
+
+function addFieldRow(containerId, placeholders) {
+    const container = document.getElementById(containerId);
+    const row = document.createElement('div');
+    row.className = 'dynamic-row';
+    row.innerHTML = placeholders.map(p => `<input type="text" class="form-input" placeholder="${p}">`).join('') +
+        `<button type="button" class="btn-remove-row" onclick="removeRow(this)">×</button>`;
+    container.appendChild(row);
+}
+
+function addRenameRow() {
+    const container = document.getElementById('rename-fields-container');
+    const row = document.createElement('div');
+    row.className = 'dynamic-row';
+    row.innerHTML = `
+        <input type="text" class="form-input" placeholder="Old name">
+        <span style="flex-shrink:0;color:var(--text-muted)">→</span>
+        <input type="text" class="form-input" placeholder="New name">
+        <button type="button" class="btn-remove-row" onclick="removeRow(this)">×</button>`;
+    container.appendChild(row);
+}
+
+function addFilterRow() {
+    const container = document.getElementById('filter-conditions-container');
+    const row = document.createElement('div');
+    row.className = 'dynamic-row';
+    row.style.cssText = 'flex-wrap:wrap;gap:.4rem;';
+    row.innerHTML = `
+        <input type="text" class="form-input" placeholder="Field name" style="min-width:100px;flex:1;">
+        <select class="form-select" style="min-width:90px;flex:.8;">
+            <option value="==">==(equals)</option>
+            <option value="!=">!=(not equal)</option>
+            <option value=">">&gt; (greater)</option>
+            <option value="<">&lt; (less)</option>
+            <option value=">=">&gt;= (gte)</option>
+            <option value="<=">&lt;= (lte)</option>
+            <option value="contains">contains</option>
+            <option value="startswith">starts with</option>
+        </select>
+        <input type="text" class="form-input" placeholder="Value" style="min-width:80px;flex:1;">
+        <button type="button" class="btn-remove-row" onclick="removeRow(this)">×</button>`;
+    container.appendChild(row);
+}
+
+// ── Core transform runner ──────────────────────────────────────
+function runTransform(tool) {
+    const formData = buildFormData(tool);
+    if (!formData) return;
+
+    const btn = document.getElementById(tool + '-run-btn');
+    const progressWrap = document.getElementById(tool + '-progress');
+    const resultEl = document.getElementById(tool + '-result');
+
+    // Loading state
+    btn.classList.add('loading');
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="animation:spin .8s linear infinite"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Processing…`;
+    progressWrap.style.display = 'block';
+    resultEl.innerHTML = '';
+
+    fetch('/transform/api/', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCookie('csrftoken') },
+        body: formData,
+    })
+    .then(r => r.json())
+    .then(data => {
+        progressWrap.style.display = 'none';
+        btn.classList.remove('loading');
+        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polygon points="5 3 19 12 5 21 5 3"/></svg> ${getRunLabel(tool)}`;
+
+        if (data.success) {
+            showSuccess(resultEl, data);
+        } else {
+            showError(resultEl, data.error || 'Unknown error');
+        }
+    })
+    .catch(err => {
+        progressWrap.style.display = 'none';
+        btn.classList.remove('loading');
+        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polygon points="5 3 19 12 5 21 5 3"/></svg> ${getRunLabel(tool)}`;
+        showError(resultEl, 'Network error: ' + err.message);
+    });
+}
+
+function getRunLabel(tool) {
+    const labels = { clip:'Run Clip', simplify:'Run Simplify', buffer:'Run Buffer', reproject:'Run Reproject', fields:'Apply Operations', dissolve:'Run Dissolve', geodesic:'Calculate Metrics', filter:'Apply Filter' };
+    return labels[tool] || 'Run';
+}
+
+// ── Build FormData per tool ────────────────────────────────────
+function buildFormData(tool) {
+    const fd = new FormData();
+    fd.append('operation', tool);
+
+    const fileEl = document.getElementById(tool + '-input-file');
+    if (!fileEl || !fileEl.files[0]) {
+        alert('Please upload an input layer file first.');
+        return null;
+    }
+    fd.append('input_file', fileEl.files[0]);
+
+    if (tool === 'clip') {
+        const bFile = document.getElementById('clip-boundary-file');
+        if (!bFile.files[0]) { alert('Please upload a boundary file.'); return null; }
+        fd.append('boundary_file', bFile.files[0]);
+        fd.append('boundary_handling', document.getElementById('clip-boundary-handling').value);
+    }
+
+    if (tool === 'simplify') {
+        fd.append('tolerance', document.getElementById('simplify-tolerance').value);
+        fd.append('preserve_topology', document.getElementById('simplify-preserve-topology').checked ? '1' : '0');
+    }
+
+    if (tool === 'buffer') {
+        fd.append('distance', document.getElementById('buffer-distance').value);
+        fd.append('resolution', document.getElementById('buffer-resolution').value);
+        fd.append('cap_style', document.getElementById('buffer-cap').value);
+    }
+
+    if (tool === 'reproject') {
+        const tgt = document.getElementById('reproject-target-crs').value.trim();
+        if (!tgt) { alert('Please enter a target CRS.'); return null; }
+        fd.append('target_crs', tgt);
+        const src = document.getElementById('reproject-source-crs').value.trim();
+        if (src) fd.append('source_crs', src);
+    }
+
+    if (tool === 'fields') {
+        // Active sub-tab
+        const activeTab = document.querySelector('#panel-fields .sub-tab-btn.active');
+        const subTab = activeTab ? activeTab.textContent.trim().toLowerCase().replace(/[^a-z]/g,'') : 'add';
+
+        if (subTab.includes('add')) {
+            const rows = document.querySelectorAll('#add-fields-container .dynamic-row');
+            const addFields = {};
+            rows.forEach(row => {
+                const inputs = row.querySelectorAll('input');
+                if (inputs[0].value.trim()) addFields[inputs[0].value.trim()] = inputs[1].value;
+            });
+            fd.append('add_fields', JSON.stringify(addFields));
+            fd.append('fields_op', 'add');
+        } else if (subTab.includes('rename')) {
+            const rows = document.querySelectorAll('#rename-fields-container .dynamic-row');
+            const renames = {};
+            rows.forEach(row => {
+                const inputs = row.querySelectorAll('input');
+                if (inputs[0].value.trim() && inputs[1].value.trim()) renames[inputs[0].value.trim()] = inputs[1].value.trim();
+            });
+            fd.append('rename_fields', JSON.stringify(renames));
+            fd.append('fields_op', 'rename');
+        } else if (subTab.includes('delete')) {
+            const rows = document.querySelectorAll('#delete-fields-container .dynamic-row');
+            const delFields = [];
+            rows.forEach(row => {
+                const val = row.querySelector('input').value.trim();
+                if (val) delFields.push(val);
+            });
+            fd.append('delete_fields', JSON.stringify(delFields));
+            fd.append('fields_op', 'delete');
+        } else {
+            const sel = document.getElementById('fields-select-list').value.trim();
+            fd.append('select_fields', sel);
+            fd.append('fields_op', 'select');
+        }
+    }
+
+    if (tool === 'dissolve') {
+        fd.append('dissolve_field', document.getElementById('dissolve-field').value.trim());
+        fd.append('aggfunc', document.getElementById('dissolve-aggfunc').value);
+    }
+
+    if (tool === 'geodesic') {
+        fd.append('ellipsoid', document.getElementById('geodesic-ellipsoid').value);
+        fd.append('mode', document.getElementById('geodesic-mode').value);
+    }
+
+    if (tool === 'filter') {
+        const activeTab = document.querySelector('#panel-filter .sub-tab-btn.active');
+        const isExpression = activeTab && activeTab.textContent.trim().toLowerCase().includes('expression');
+
+        if (isExpression) {
+            const expr = document.getElementById('filter-expression').value.trim();
+            if (!expr) { alert('Please enter a filter expression.'); return null; }
+            fd.append('filter_expression', expr);
+            fd.append('filter_mode', 'expression');
+        } else {
+            const rows = document.querySelectorAll('#filter-conditions-container .dynamic-row');
+            const conditions = [];
+            rows.forEach(row => {
+                const field = row.querySelectorAll('input')[0].value.trim();
+                const op    = row.querySelector('select').value;
+                const val   = row.querySelectorAll('input')[1].value.trim();
+                if (field) conditions.push({ field, op, value: val });
+            });
+            if (!conditions.length) { alert('Add at least one filter condition.'); return null; }
+            fd.append('filter_conditions', JSON.stringify(conditions));
+            fd.append('filter_logic', document.getElementById('filter-logic').value);
+            fd.append('filter_mode', 'simple');
+        }
+    }
+
+    return fd;
+}
+
+// ── Result rendering ───────────────────────────────────────────
+function showSuccess(container, data) {
+    const meta = data.metadata || {};
+    const statsHtml = [
+        ['Features', meta.feature_count ?? '—'],
+        ['Time', data.processing_time ? data.processing_time.toFixed(2) + 's' : '—'],
+        ['CRS', meta.crs ?? '—'],
+    ].map(([label, val]) => `<div class="result-stat"><div class="result-stat-value">${val}</div><div class="result-stat-label">${label}</div></div>`).join('');
+
+    container.innerHTML = `
+    <div class="result-box success" style="display:block;margin:0 1.75rem 1.25rem;">
+        <div class="result-box-header">
+            <span class="result-box-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </span>
+            <div>
+                <div class="result-box-title">Operation Successful</div>
+            </div>
+        </div>
+        <div class="result-box-body">
+            <div class="result-stat-grid">${statsHtml}</div>
+            ${data.download_url ? `<a href="${data.download_url}" class="result-download-btn" download>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Download Result (GeoJSON)
+            </a>` : ''}
+        </div>
+    </div>`;
+}
+
+function showError(container, message) {
+    container.innerHTML = `
+    <div class="result-box error" style="display:block;margin:0 1.75rem 1.25rem;">
+        <div class="result-box-header">
+            <span class="result-box-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </span>
+            <div class="result-box-title">Error</div>
+        </div>
+        <div class="result-box-body">
+            <div class="result-error-msg">${escapeHtml(message)}</div>
+        </div>
+    </div>`;
+}
+
+// ── Utilities ──────────────────────────────────────────────────
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        for (const cookie of document.cookie.split(';')) {
+            const c = cookie.trim();
+            if (c.startsWith(name + '=')) {
+                cookieValue = decodeURIComponent(c.slice(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+function escapeHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Spinner animation
+const style = document.createElement('style');
+style.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
+document.head.appendChild(style);
+</script>
+{% endblock %}

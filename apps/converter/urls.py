@@ -72,4 +72,8 @@ urlpatterns = [
     path('api/v1/jobs/<uuid:job_id>/preview/attributes', views.api_job_preview_attributes, name='api_job_preview_attributes'),
     path('api/v1/jobs/<uuid:job_id>/confirm-preview', views.api_job_confirm_preview, name='api_job_confirm_preview'),
     path('api/v1/jobs/<uuid:job_id>/abort-after-preview', views.api_job_abort_after_preview, name='api_job_abort_after_preview'),
+
+    # Transform Tools
+    path('transform/', views.transform_page, name='transform_page'),
+    path('transform/api/', views.transform_api, name='transform_api'),
 ]

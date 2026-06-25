@@ -3657,3 +3657,264 @@ def api_tus_upload(request):
 
 def api_output_download(request, job_id):
     return output_download(request, job_id)
+
+
+# ────────────────────────────────────────────────────────────────
+# TRANSFORM TOOLS  (Clip / Simplify / Buffer / Reproject / Fields
+#                   / Dissolve / Geodesic / Filter)
+# ────────────────────────────────────────────────────────────────
+
+def transform_page(request):
+    """Render the Transform Tools page."""
+    return render(request, 'converter/transform.html', {'active_page': 'transform'})
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def transform_api(request):
+    """
+    Single API endpoint that dispatches to the correct geo-operation.
+
+    Expected multipart/form-data fields:
+        operation       – one of: clip, simplify, buffer, reproject, fields,
+                          dissolve, geodesic, filter
+        input_file      – required for all operations
+        + operation-specific params (see below)
+    """
+    import tempfile, os, json as _json, time
+
+    try:
+        import geopandas as gpd
+        from shapely.geometry import shape as _shape
+    except ImportError:
+        return JsonResponse({'success': False, 'error': 'geopandas is not installed.'}, status=500)
+
+    operation = request.POST.get('operation', '').strip()
+    if operation not in ('clip', 'simplify', 'buffer', 'reproject', 'fields', 'dissolve', 'geodesic', 'filter'):
+        return JsonResponse({'success': False, 'error': f'Unknown operation: {operation}'})
+
+    input_file = request.FILES.get('input_file')
+    if not input_file:
+        return JsonResponse({'success': False, 'error': 'No input file provided.'})
+
+    # ── Save uploaded file(s) to temp dir ────────────────────────
+    tmp_dir = tempfile.mkdtemp(prefix='transform_')
+    try:
+        ext = os.path.splitext(input_file.name)[1].lower()
+        input_path = os.path.join(tmp_dir, 'input' + ext)
+        with open(input_path, 'wb') as f:
+            for chunk in input_file.chunks():
+                f.write(chunk)
+
+        # For ZIP shapefiles, detect the .shp inside
+        if ext == '.zip':
+            import zipfile as _zf
+            with _zf.ZipFile(input_path, 'r') as z:
+                z.extractall(tmp_dir)
+            shp_files = [os.path.join(tmp_dir, n) for n in os.listdir(tmp_dir) if n.lower().endswith('.shp')]
+            if shp_files:
+                input_path = shp_files[0]
+            else:
+                input_path = os.path.join(tmp_dir, 'input' + ext)
+
+        t0 = time.time()
+
+        # ── Read input layer ──────────────────────────────────────
+        gdf = gpd.read_file(input_path)
+
+        # ── Dispatch operation ────────────────────────────────────
+        if operation == 'clip':
+            boundary_file = request.FILES.get('boundary_file')
+            if not boundary_file:
+                return JsonResponse({'success': False, 'error': 'Boundary file is required for clip.'})
+            b_ext = os.path.splitext(boundary_file.name)[1].lower()
+            b_path = os.path.join(tmp_dir, 'boundary' + b_ext)
+            with open(b_path, 'wb') as f:
+                for chunk in boundary_file.chunks():
+                    f.write(chunk)
+            if b_ext == '.zip':
+                import zipfile as _zf
+                with _zf.ZipFile(b_path, 'r') as z:
+                    z.extractall(os.path.join(tmp_dir, 'boundary_zip'))
+                shps = [os.path.join(tmp_dir, 'boundary_zip', n) for n in os.listdir(os.path.join(tmp_dir, 'boundary_zip')) if n.lower().endswith('.shp')]
+                if shps:
+                    b_path = shps[0]
+            boundary_gdf = gpd.read_file(b_path)
+            if gdf.crs and boundary_gdf.crs and gdf.crs != boundary_gdf.crs:
+                boundary_gdf = boundary_gdf.to_crs(gdf.crs)
+            handling = request.POST.get('boundary_handling', 'clip')
+            if handling == 'drop':
+                mask = boundary_gdf.union_all() if hasattr(boundary_gdf, 'union_all') else boundary_gdf.unary_union
+                gdf = gdf[gdf.geometry.within(mask)]
+            else:
+                gdf = gpd.clip(gdf, boundary_gdf)
+
+        elif operation == 'simplify':
+            tolerance = float(request.POST.get('tolerance', 0.0001))
+            preserve_topology = request.POST.get('preserve_topology', '1') == '1'
+            gdf['geometry'] = gdf['geometry'].simplify(tolerance, preserve_topology=preserve_topology)
+
+        elif operation == 'buffer':
+            distance = float(request.POST.get('distance', 50))
+            resolution = int(request.POST.get('resolution', 16))
+            cap_style_map = {'round': 1, 'flat': 2, 'square': 3}
+            cap = cap_style_map.get(request.POST.get('cap_style', 'round'), 1)
+            gdf['geometry'] = gdf['geometry'].buffer(distance, resolution=resolution, cap_style=cap)
+
+        elif operation == 'reproject':
+            target_crs = request.POST.get('target_crs', 'EPSG:3857').strip()
+            source_crs = request.POST.get('source_crs', '').strip()
+            if source_crs and gdf.crs is None:
+                gdf = gdf.set_crs(source_crs)
+            gdf = gdf.to_crs(target_crs)
+
+        elif operation == 'fields':
+            fields_op = request.POST.get('fields_op', 'add')
+            if fields_op == 'add':
+                add_fields = _json.loads(request.POST.get('add_fields', '{}'))
+                for fname, fval in add_fields.items():
+                    gdf[fname] = fval
+            elif fields_op == 'rename':
+                rename_map = _json.loads(request.POST.get('rename_fields', '{}'))
+                gdf = gdf.rename(columns=rename_map)
+            elif fields_op == 'delete':
+                del_fields = _json.loads(request.POST.get('delete_fields', '[]'))
+                existing = [c for c in del_fields if c in gdf.columns]
+                gdf = gdf.drop(columns=existing)
+            elif fields_op == 'select':
+                sel_raw = request.POST.get('select_fields', '')
+                sel_fields = [s.strip() for s in sel_raw.split(',') if s.strip()]
+                keep = ['geometry'] + [f for f in sel_fields if f in gdf.columns]
+                gdf = gdf[keep]
+
+        elif operation == 'dissolve':
+            dissolve_field = request.POST.get('dissolve_field', '').strip()
+            aggfunc = request.POST.get('aggfunc', 'first')
+            if dissolve_field and dissolve_field in gdf.columns:
+                gdf = gdf.dissolve(by=dissolve_field, aggfunc=aggfunc).reset_index()
+            else:
+                gdf = gdf.dissolve(aggfunc=aggfunc).reset_index()
+
+        elif operation == 'geodesic':
+            from pyproj import Geod
+            ellipsoid = request.POST.get('ellipsoid', 'WGS84')
+            mode = request.POST.get('mode', 'geodesic')
+            if mode == 'cartesian' and gdf.crs and gdf.crs.is_projected:
+                gdf['area_sqm'] = gdf.geometry.area
+                gdf['length_m'] = gdf.geometry.length
+            else:
+                geod = Geod(ellps=ellipsoid)
+                areas, lengths = [], []
+                for geom in gdf.geometry:
+                    if geom is None or geom.is_empty:
+                        areas.append(0); lengths.append(0)
+                    elif geom.geom_type in ('Polygon', 'MultiPolygon'):
+                        area, perim, _ = geod.geometry_area_perimeter(geom)
+                        areas.append(abs(area)); lengths.append(abs(perim))
+                    elif geom.geom_type in ('LineString', 'MultiLineString'):
+                        lats = list(geom.coords)
+                        total = sum(geod.inv(lats[i][0], lats[i][1], lats[i+1][0], lats[i+1][1])[2] for i in range(len(lats)-1))
+                        areas.append(0); lengths.append(total)
+                    else:
+                        areas.append(0); lengths.append(0)
+                gdf['area_sqm'] = areas
+                gdf['length_m'] = lengths
+
+        elif operation == 'filter':
+            filter_mode = request.POST.get('filter_mode', 'simple')
+            if filter_mode == 'expression':
+                expr = request.POST.get('filter_expression', '').strip()
+                gdf = gdf.query(expr)
+            else:
+                conditions_raw = request.POST.get('filter_conditions', '[]')
+                conditions = _json.loads(conditions_raw)
+                logic = request.POST.get('filter_logic', 'AND')
+                mask = None
+                for cond in conditions:
+                    field, op, val = cond.get('field'), cond.get('op'), cond.get('value', '')
+                    if field not in gdf.columns:
+                        continue
+                    col = gdf[field]
+                    try:
+                        numeric_val = float(val)
+                        is_numeric = True
+                    except (ValueError, TypeError):
+                        is_numeric = False
+
+                    if op == '==':
+                        m = col == (numeric_val if is_numeric else val)
+                    elif op == '!=':
+                        m = col != (numeric_val if is_numeric else val)
+                    elif op == '>':
+                        m = col > numeric_val if is_numeric else col > val
+                    elif op == '<':
+                        m = col < numeric_val if is_numeric else col < val
+                    elif op == '>=':
+                        m = col >= numeric_val if is_numeric else col >= val
+                    elif op == '<=':
+                        m = col <= numeric_val if is_numeric else col <= val
+                    elif op == 'contains':
+                        m = col.astype(str).str.contains(str(val), case=False, na=False)
+                    elif op == 'startswith':
+                        m = col.astype(str).str.startswith(str(val), na=False)
+                    else:
+                        continue
+
+                    if mask is None:
+                        mask = m
+                    elif logic == 'OR':
+                        mask = mask | m
+                    else:
+                        mask = mask & m
+
+                if mask is not None:
+                    gdf = gdf[mask]
+
+        # ── Write output as GeoJSON ───────────────────────────────
+        out_path = os.path.join(tmp_dir, 'output.geojson')
+        gdf.to_file(out_path, driver='GeoJSON')
+        processing_time = time.time() - t0
+
+        # ── Read output to serve as download ──────────────────────
+        with open(out_path, 'rb') as f:
+            out_bytes = f.read()
+
+        # Store in Django media/transform_outputs and return a URL
+        import uuid as _uuid
+        out_name = f'transform_{operation}_{_uuid.uuid4().hex[:8]}.geojson'
+        media_dir = os.path.join(settings.MEDIA_ROOT, 'transform_outputs')
+        os.makedirs(media_dir, exist_ok=True)
+        media_path = os.path.join(media_dir, out_name)
+        with open(media_path, 'wb') as f:
+            f.write(out_bytes)
+
+        download_url = settings.MEDIA_URL + 'transform_outputs/' + out_name
+
+        crs_str = str(gdf.crs) if gdf.crs else 'Unknown'
+        return JsonResponse({
+            'success': True,
+            'download_url': download_url,
+            'processing_time': processing_time,
+            'metadata': {
+                'feature_count': len(gdf),
+                'crs': crs_str,
+                'operation': operation,
+                'columns': list(gdf.columns),
+            }
+        })
+
+    except Exception as exc:
+        import traceback as _tb
+        return JsonResponse({
+            'success': False,
+            'error': str(exc),
+            'detail': _tb.format_exc()[-600:],
+        }, status=400)
+
+    finally:
+        # Clean up temp input files (keep media output)
+        import shutil as _shutil
+        try:
+            _shutil.rmtree(tmp_dir, ignore_errors=True)
+        except Exception:
+            pass
