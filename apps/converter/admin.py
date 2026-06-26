@@ -1244,7 +1244,177 @@ class LocationExportAdmin(admin.ModelAdmin):
 
 
 
+# ============================================================================
+
+# AUTHORIZATION TOKENS
+
+# ============================================================================
+
+from rest_framework.authtoken.models import Token
+from rest_framework.authtoken.admin import TokenAdmin as BaseTokenAdmin
+
+# Unregister the default minimal Token admin provided by DRF (if it was registered)
+try:
+    admin.site.unregister(Token)
+except admin.sites.NotRegistered:
+    pass
+
+
+@admin.register(Token)
+class TokenAdmin(admin.ModelAdmin):
+    """
+    Rich admin view for DRF Authorization Tokens.
+    Shows the full token key, allows copying, and links to the owning user.
+    """
+
+    list_display = (
+        "user_display",
+        "token_preview",
+        "token_copy_button",
+        "created",
+    )
+
+    search_fields = ("user__username", "user__email", "key")
+
+    readonly_fields = (
+        "key",
+        "token_full_display",
+        "created",
+    )
+
+    ordering = ("-created",)
+
+    fieldsets = (
+        ("User", {
+            "fields": ("user",),
+        }),
+        ("Token", {
+            "fields": ("key", "token_full_display", "created"),
+            "description": (
+                "The token key is shown in full below. "
+                "Use it in the HTTP header: "
+                "<code>Authorization: Token &lt;key&gt;</code>"
+            ),
+        }),
+    )
+
+    # ------------------------------------------------------------------
+    # List display helpers
+    # ------------------------------------------------------------------
+
+    def user_display(self, obj):
+        url = reverse("admin:auth_user_change", args=[obj.user_id])
+        return format_html(
+            '<a href="{}" style="font-weight:600;">{}</a>',
+            url,
+            obj.user.username,
+        )
+
+    user_display.short_description = "User"
+    user_display.admin_order_field = "user__username"
+
+    def token_preview(self, obj):
+        """Show first 8 + last 8 chars with ••• in the middle."""
+        key = obj.key
+        if len(key) <= 16:
+            preview = key
+        else:
+            preview = f"{key[:8]}••••••••{key[-8:]}"
+        return format_html(
+            '<code style="'
+            "font-family: 'Courier New', monospace;"
+            "background: #f0f4ff;"
+            "border: 1px solid #c3d0f5;"
+            "padding: 3px 8px;"
+            "border-radius: 4px;"
+            "font-size: 0.85em;"
+            '">{}</code>',
+            preview,
+        )
+
+    token_preview.short_description = "Token (preview)"
+
+    def token_copy_button(self, obj):
+        """Inline copy-to-clipboard button using a small JS snippet."""
+        return format_html(
+            '<button type="button" '
+            'onclick="navigator.clipboard.writeText(\'{token}\').'
+            "then(function(){{this.textContent='✓ Copied!';}}.bind(this),"
+            "function(){{this.textContent='Copy failed';}})\" "
+            'title="Copy full token to clipboard" '
+            'style="'
+            "cursor:pointer;"
+            "background:#1a73e8;"
+            "color:#fff;"
+            "border:none;"
+            "padding:4px 10px;"
+            "border-radius:4px;"
+            "font-size:0.8em;"
+            "font-weight:600;"
+            '">'
+            "📋 Copy Token"
+            "</button>",
+            token=obj.key,
+        )
+
+    token_copy_button.short_description = "Actions"
+
+    # ------------------------------------------------------------------
+    # Detail page helper
+    # ------------------------------------------------------------------
+
+    def token_full_display(self, obj):
+        """Render the full token key in a styled monospace box with a copy button."""
+        return format_html(
+            '<div style="'
+            "display:flex;"
+            "align-items:center;"
+            "gap:10px;"
+            "flex-wrap:wrap;"
+            '">'
+            '<code id="full-token-{uid}" style="'
+            "font-family:'Courier New',monospace;"
+            "background:#f0f4ff;"
+            "border:1px solid #c3d0f5;"
+            "padding:8px 14px;"
+            "border-radius:6px;"
+            "font-size:0.9em;"
+            "word-break:break-all;"
+            "flex:1;"
+            '">{key}</code>'
+            '<button type="button" '
+            'onclick="navigator.clipboard.writeText(\'{key}\').'
+            "then(function(){{this.textContent='✓ Copied!';}}.bind(this),"
+            "function(){{this.textContent='Copy failed';}})\" "
+            'style="'
+            "cursor:pointer;"
+            "background:#1a73e8;"
+            "color:#fff;"
+            "border:none;"
+            "padding:7px 16px;"
+            "border-radius:5px;"
+            "font-weight:600;"
+            "white-space:nowrap;"
+            '">'
+            "📋 Copy to Clipboard"
+            "</button>"
+            "</div>"
+            '<p style="margin-top:8px;color:#555;font-size:0.85em;">'
+            "<strong>Usage:</strong> Add to HTTP request header — "
+            "<code>Authorization: Token {key}</code>"
+            "</p>",
+            uid=obj.pk,
+            key=obj.key,
+        )
+
+    token_full_display.short_description = "Full Token Key"
+
+
+# ============================================================================
+
 # Customize admin site
+
+# ============================================================================
 
 admin.site.site_header = "Geo File Conversion Admin"
 
