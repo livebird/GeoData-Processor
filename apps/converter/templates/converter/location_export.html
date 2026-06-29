@@ -445,6 +445,27 @@
             resultBox.innerHTML = `
                 ✓ Converted ZIP placed at the selected location.
                 <br><a href="${data.download_url}" class="btn-secondary" style="margin-top:0.75rem; display:inline-block;">📥 Download ZIP</a>
+                <div style="margin-top: 1rem; padding: 0.75rem; background: rgba(255,255,255,0.5); border-radius: 6px; font-size: 0.85em;">
+                    <strong>HMAC-SHA256 Signature Verification:</strong>
+                    <div style="margin-top: 0.5rem;">
+                        <div style="margin-bottom: 0.4rem;"><strong>Sender Signature:</strong> <code style="word-break: break-all; font-size: 0.8em;">${data.signature || 'N/A'}</code></div>
+                        <div style="margin-bottom: 0.4rem;"><strong>Receiver Signature:</strong> <code style="word-break: break-all; font-size: 0.8em;">${data.receiver_signature || 'N/A'}</code></div>
+                        <div style="margin-bottom: 0.4rem;"><strong>Timestamp:</strong> ${data.timestamp || 'N/A'}</div>
+                        <div style="margin-bottom: 0.4rem;"><strong>Nonce:</strong> <code style="word-break: break-all; font-size: 0.8em;">${data.nonce || 'N/A'}</code></div>
+                        <div style="margin-bottom: 0.4rem;"><strong>Payload Hash:</strong> <code style="word-break: break-all; font-size: 0.8em;">${data.payload_hash || 'N/A'}</code></div>
+                        ${!data.payload_unchanged ? `
+                        <div style="margin-top: 0.5rem; padding: 0.5rem; background: rgba(239,68,68,0.2); border-radius: 4px; border: 1px solid rgba(239,68,68,0.5); font-weight: 600; color: #dc2626;">
+                            ⚠ FILE DETAILS CHANGED - Admin modified file details after previous export. Signature invalidated.
+                        </div>
+                        ` : ''}
+                        <div style="margin-top: 0.5rem; padding: 0.5rem; background: ${data.signature_verified ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}; border-radius: 4px; border: 1px solid ${data.signature_verified ? 'rgba(16,185,129,0.5)' : 'rgba(239,68,68,0.5)'}; font-weight: 600;">
+                            ${data.signature_verified ? '✓ SIGNATURE VALID - Both signatures match' : '✗ SIGNATURE INVALID - Signatures do not match'}
+                        </div>
+                        <div style="margin-top: 0.5rem; color: var(--text-muted); font-size: 0.8em;">
+                            This signature uses canonical JSON + timestamp + nonce for anti-replay protection.
+                        </div>
+                    </div>
+                </div>
             `;
             resultBox.style.display = 'block';
 

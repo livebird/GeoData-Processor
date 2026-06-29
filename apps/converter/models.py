@@ -456,6 +456,13 @@ class LocationExport(models.Model):
     output_zip_relpath = models.CharField(max_length=512, blank=True, default="")
     conversion_job_task_id = models.CharField(max_length=64, blank=True, default="")
     ip_address = models.GenericIPAddressField(null=True, blank=True)
+    # HMAC-SHA256 signature fields for send to export (FR-DISP-002)
+    signature = models.CharField(max_length=255, blank=True, null=True, db_index=True)
+    signature_timestamp = models.DateTimeField(null=True, blank=True)
+    signature_nonce = models.CharField(max_length=64, blank=True, null=True)
+    signature_verified = models.BooleanField(default=False)  # Whether signature verification passed
+    receiver_signature = models.CharField(max_length=255, blank=True, null=True)  # Receiver's recalculated signature
+    payload_hash = models.CharField(max_length=64, blank=True, null=True, db_index=True)  # Hash of original payload for change detection
 
     class Meta:
         ordering = ["-created_at"]

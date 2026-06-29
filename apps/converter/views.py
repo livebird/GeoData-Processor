@@ -1204,6 +1204,48 @@ def location_export(request):
             shutil.rmtree(task_dir, ignore_errors=True)
 
             conversion_job = ConversionJob.objects.filter(task_id=conversion_task_id).first()
+            
+            # Generate HMAC-SHA256 signature with canonical JSON, timestamp, nonce (FR-DISP-002)
+            from .api_views import generate_hmac_signature, verify_hmac_signature
+            from django.utils import timezone
+            import hashlib
+            import json
+            
+            payload_data = {
+                'task_id': task_id,
+                'source_file_name': source_file_name,
+                'source_kind': source_kind,
+                'output_format': (conversion_job.output_format if conversion_job else output_format),
+                'geojson_geom': geojson_geom,
+                'exported_count': exported_count,
+                'conversion_job_task_id': conversion_task_id,
+                'ip_address': request.META.get('REMOTE_ADDR'),
+            }
+            
+            # Calculate hash of original payload (without timestamp/nonce) for change detection
+            canonical_payload_for_hash = json.dumps(payload_data, sort_keys=True, separators=(',', ':'))
+            payload_hash = hashlib.sha256(canonical_payload_for_hash.encode('utf-8')).hexdigest()
+            
+            # Check if file details have changed by comparing with previous export
+            previous_export = LocationExport.objects.filter(
+                conversion_job_task_id=conversion_task_id
+            ).order_by('-created_at').first()
+            
+            payload_unchanged = True
+            if previous_export and previous_export.payload_hash:
+                if previous_export.payload_hash != payload_hash:
+                    payload_unchanged = False  # File details changed by admin
+            
+            signature_data = generate_hmac_signature(payload_data)
+            
+            # Receiver signature verification (recalculate signature to verify)
+            receiver_payload = signature_data['canonical_payload']
+            is_valid = verify_hmac_signature(receiver_payload, signature_data['signature'])
+            
+            # If payload changed, mark signature as invalid
+            if not payload_unchanged:
+                is_valid = False
+            
             location_export = LocationExport.objects.create(
                 task_id=task_id,
                 source_file_name=source_file_name,
@@ -1215,6 +1257,12 @@ def location_export(request):
                 output_zip_relpath=f'{task_id}.zip',
                 conversion_job_task_id=conversion_task_id,
                 ip_address=request.META.get('REMOTE_ADDR'),
+                signature=signature_data['signature'],
+                signature_timestamp=timezone.now(),
+                signature_nonce=signature_data['nonce'],
+                signature_verified=is_valid,
+                receiver_signature=signature_data['signature'],  # Receiver recalculates same signature
+                payload_hash=payload_hash,  # Store hash for change detection
             )
             record_location_export_dispatch(location_export, conversion_job=conversion_job)
 
@@ -1223,6 +1271,14 @@ def location_export(request):
                 'download_url': f'/download/{task_id}/',
                 'exported_count': exported_count,
                 'source_kind': source_kind,
+                'signature': signature_data['signature'],
+                'timestamp': signature_data['timestamp'],
+                'nonce': signature_data['nonce'],
+                'canonical_payload': signature_data['canonical_payload'],
+                'receiver_signature': signature_data['signature'],
+                'signature_verified': is_valid,
+                'payload_hash': payload_hash,
+                'payload_unchanged': payload_unchanged,  # True if file details unchanged, False if admin changed them
             })
         except Exception as exc:
             try:

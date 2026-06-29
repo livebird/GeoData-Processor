@@ -5,6 +5,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = 'django-insecure-geodata-processor-key-for-local-development-only'
 
+# HMAC-SHA256 secret key for dispatch signature (FR-DISP-002)
+# In production, this should be set via environment variable
+DISPATCH_HMAC_SECRET_KEY = os.environ.get('DISPATCH_HMAC_SECRET_KEY', 'change-this-secret-key-in-production-use-environment-variable')
+
 DEBUG = True
 
 ALLOWED_HOSTS = ['*']

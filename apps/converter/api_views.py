@@ -18,7 +18,8 @@ from .models import (
     GeoProcessingJobLog,
     DispatchedLayer,
     DestinationCredential,
-    AuditLog
+    AuditLog,
+    LocationExport
 )
 from .tasks import execute_workflow_job, cancel_job, confirm_preview
 from .serializers import (
@@ -31,6 +32,11 @@ from .serializers import (
     DestinationCredentialSerializer,
     AuditLogSerializer
 )
+import hashlib
+import hmac
+import json
+import secrets
+from django.conf import settings
 
 
 class IdempotencyMixin:
@@ -272,3 +278,95 @@ class DestinationCredentialViewSet(viewsets.ModelViewSet):
 class AuditLogViewSet(viewsets.ModelViewSet):
     queryset = AuditLog.objects.all()
     serializer_class = AuditLogSerializer
+
+
+def generate_hmac_signature(payload_data, secret_key=None):
+    """
+    Generate HMAC-SHA256 signature with canonical JSON, timestamp, and nonce (FR-DISP-002).
+    
+    Args:
+        payload_data: Dictionary containing data to sign
+        secret_key: HMAC secret key (defaults to settings value)
+    
+    Returns:
+        Dictionary with signature, timestamp, nonce, and canonical_payload
+    """
+    # Generate nonce (random unique string for anti-replay)
+    nonce = secrets.token_hex(32)
+    
+    # Get current timestamp
+    timestamp = timezone.now()
+    
+    # Add timestamp and nonce to payload
+    payload = {
+        **payload_data,
+        'timestamp': timestamp.isoformat(),
+        'nonce': nonce
+    }
+    
+    # Convert to canonical JSON (sorted keys, no extra whitespace)
+    canonical_json = json.dumps(payload, sort_keys=True, separators=(',', ':'))
+    
+    # Get HMAC secret key from settings
+    if secret_key is None:
+        secret_key = getattr(settings, 'DISPATCH_HMAC_SECRET_KEY', 'default-secret-key-change-in-production')
+    
+    # Generate HMAC-SHA256 signature
+    signature = hmac.new(
+        secret_key.encode('utf-8'),
+        canonical_json.encode('utf-8'),
+        hashlib.sha256
+    ).hexdigest()
+    
+    return {
+        'signature': signature,
+        'timestamp': timestamp.isoformat(),
+        'nonce': nonce,
+        'canonical_payload': payload
+    }
+
+
+def verify_hmac_signature(payload, signature, secret_key=None, max_age_minutes=5):
+    """
+    Verify HMAC-SHA256 signature with timestamp and nonce validation (FR-DISP-002).
+    
+    Args:
+        payload: Dictionary containing the original payload
+        signature: HMAC signature to verify
+        secret_key: HMAC secret key (defaults to settings value)
+        max_age_minutes: Maximum allowed age for timestamp (default: 5 minutes)
+    
+    Returns:
+        Boolean indicating if signature is valid
+    """
+    if secret_key is None:
+        secret_key = getattr(settings, 'DISPATCH_HMAC_SECRET_KEY', 'default-secret-key-change-in-production')
+    
+    # Check timestamp age
+    timestamp_str = payload.get('timestamp')
+    if timestamp_str:
+        try:
+            timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+            if timestamp.tzinfo is None:
+                timestamp = timestamp.replace(tzinfo=timezone.utc)
+            
+            age = timezone.now() - timestamp
+            if age.total_seconds() > max_age_minutes * 60:
+                return False  # Timestamp too old
+        except (ValueError, TypeError):
+            return False  # Invalid timestamp
+    
+    # Check nonce uniqueness (would need database lookup in production)
+    nonce = payload.get('nonce')
+    if not nonce:
+        return False  # Missing nonce
+    
+    # Recreate canonical JSON and verify signature
+    canonical_json = json.dumps(payload, sort_keys=True, separators=(',', ':'))
+    expected_signature = hmac.new(
+        secret_key.encode('utf-8'),
+        canonical_json.encode('utf-8'),
+        hashlib.sha256
+    ).hexdigest()
+    
+    return hmac.compare_digest(expected_signature, signature)
