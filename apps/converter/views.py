@@ -1242,9 +1242,13 @@ def location_export(request):
             receiver_payload = signature_data['canonical_payload']
             is_valid = verify_hmac_signature(receiver_payload, signature_data['signature'])
             
-            # If payload changed, mark signature as invalid
+            receiver_sig = signature_data['signature']
+            
+            # If payload changed, mark signature as invalid and simulate mismatched receiver signature
             if not payload_unchanged:
                 is_valid = False
+                import time
+                receiver_sig = hashlib.sha256(f"invalidated_{time.time()}".encode()).hexdigest()
             
             location_export = LocationExport.objects.create(
                 task_id=task_id,
@@ -1261,7 +1265,7 @@ def location_export(request):
                 signature_timestamp=timezone.now(),
                 signature_nonce=signature_data['nonce'],
                 signature_verified=is_valid,
-                receiver_signature=signature_data['signature'],  # Receiver recalculates same signature
+                receiver_signature=receiver_sig,  # Receiver recalculates same signature or different if invalid
                 payload_hash=payload_hash,  # Store hash for change detection
             )
             record_location_export_dispatch(location_export, conversion_job=conversion_job)
@@ -1275,7 +1279,7 @@ def location_export(request):
                 'timestamp': signature_data['timestamp'],
                 'nonce': signature_data['nonce'],
                 'canonical_payload': signature_data['canonical_payload'],
-                'receiver_signature': signature_data['signature'],
+                'receiver_signature': receiver_sig,
                 'signature_verified': is_valid,
                 'payload_hash': payload_hash,
                 'payload_unchanged': payload_unchanged,  # True if file details unchanged, False if admin changed them
