@@ -138,7 +138,7 @@ AV_SCAN_ENABLED = False
 UPLOAD_DAILY_QUOTA = 5 * 1024 * 1024 * 1024  # 5 GB
 
 # Celery Configuration with RabbitMQ
-CELERY_BROKER_URL = 'amqp://guest:guest@localhost:5672//'
+CELERY_BROKER_URL = "amqp://guest:guest@127.0.0.1:5672//"
 CELERY_RESULT_BACKEND = 'rpc://'
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_ACCEPT_CONTENT = ['json']
