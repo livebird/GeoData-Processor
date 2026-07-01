@@ -6,6 +6,26 @@
 <style>
   .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
   .meta { display: grid; gap: 8px; margin-top: 1rem; color: var(--text-muted); }
+  .section { margin-top: 1.5rem; }
+  .section-title { font-size: 1rem; font-weight: 800; margin-bottom: 0.75rem; }
+  .object-table {
+    width: 100%;
+    border-collapse: collapse;
+    overflow: hidden;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.9);
+  }
+  .object-table th,
+  .object-table td {
+    padding: 0.75rem 0.9rem;
+    text-align: left;
+    border-bottom: 1px solid rgba(2, 6, 23, 0.08);
+    vertical-align: top;
+  }
+  .object-table th { font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+  .object-table tr:last-child td { border-bottom: none; }
+  .object-name { word-break: break-word; }
   .actions { display: flex; gap: 10px; justify-content: center; margin-top: 1.25rem; flex-wrap: wrap; }
   .btn-link {
     display: inline-flex;
@@ -39,6 +59,39 @@
     <div><strong>IP:</strong> {{ job.ip_address|default:"—" }}</div>
     <div><strong>User agent:</strong> {{ job.user_agent|default:"—" }}</div>
     {% if job.error_message %}<div><strong>Error:</strong> {{ job.error_message }}</div>{% endif %}
+  </div>
+
+  <div class="section">
+    <div class="section-title">MinIO Objects</div>
+    <div class="meta" style="margin-top: 0;">
+      <div><strong>Bucket:</strong> {{ minio_bucket }}</div>
+      <div><strong>Prefix:</strong> <span class="mono">{{ minio_prefix }}</span></div>
+    </div>
+
+    {% if minio_objects %}
+      <table class="object-table" style="margin-top: 1rem;">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Size</th>
+            <th>Last Modified</th>
+            <th>Link</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for object in minio_objects %}
+            <tr>
+              <td class="object-name mono">{{ object.name }}</td>
+              <td>{{ object.size|filesizeformat }}</td>
+              <td>{{ object.last_modified|default:"—" }}</td>
+              <td><a href="{{ object.url }}" target="_blank" rel="noopener">Open</a></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="meta" style="margin-top: 0.75rem;">No MinIO objects found for this job yet.</div>
+    {% endif %}
   </div>
 
   <div class="actions">

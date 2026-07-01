@@ -12,7 +12,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.contrib.auth.models import User
 from django.utils import timezone
 
-from converter.models import ConversionJob, GeoFile, GeoProcessingJob, UploadQuotaLog
+from converter.models import ConversionInputFile, ConversionJob, GeoFile, GeoProcessingJob, UploadQuotaLog
 from converter.signals import DEFAULT_ORG_ID
 from converter.batchconvert import path_matches_driver_ext
 from converter.views import (
@@ -302,6 +302,43 @@ class AdminUsageDashboardTests(TestCase):
         self.assertContains(response, 'Failed jobs')
         self.assertContains(response, 'Storage usage')
         self.assertContains(response, 'adminuser')
+
+
+class AdminJobDetailMinioTests(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.job = ConversionJob.objects.create(
+            task_id=uuid.uuid4(),
+            status=ConversionJob.STATUS_SUCCESS,
+            upload_files_count=1,
+            output_files_count=1,
+            download_url='/download/sample/',
+        )
+        ConversionInputFile.objects.create(
+            job=self.job,
+            original_name='file_sorted_desc.geojson',
+            size_bytes=2300000,
+            content_type='application/geo+json',
+        )
+
+    @patch('converter.views.list_minio_objects')
+    @patch('converter.views.get_minio_bucket_name', return_value='kavanmineshshah')
+    @patch('converter.views.get_minio_object_prefix', return_value='conversion-jobs/sample/input')
+    def test_admin_job_detail_shows_minio_object_list(self, mock_prefix, mock_bucket, mock_list):
+        mock_list.return_value = [
+            {
+                'name': 'conversion-jobs/sample/input/file_sorted_desc.geojson',
+                'size': 2300000,
+                'last_modified': timezone.now(),
+                'url': 'http://localhost:9000/kavanmineshshah/conversion-jobs/sample/input/file_sorted_desc.geojson',
+            }
+        ]
+
+        response = self.client.get(reverse('converter:admin_job_detail', kwargs={'task_id': self.job.task_id}))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'MinIO Objects')
+        self.assertContains(response, 'file_sorted_desc.geojson')
+        self.assertContains(response, 'kavanmineshshah')
 
 
 class OperatorJobPreviewTests(TestCase):

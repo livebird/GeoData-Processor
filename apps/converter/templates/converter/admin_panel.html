@@ -114,6 +114,26 @@
     gap: 4px;
   }
 
+  .file-list {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .file-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0.35rem 0.65rem;
+    border-radius: 999px;
+    border: 1px solid rgba(2, 6, 23, 0.10);
+    background: rgba(2, 6, 23, 0.03);
+    color: var(--text-main);
+    font-size: 0.85rem;
+    max-width: 100%;
+  }
+  .file-chip small { color: var(--text-muted); }
+
   .actions { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .btn-mini {
     display: inline-flex;
@@ -213,6 +233,16 @@
             <div><strong>Formats:</strong> {{ job.input_format|default:"—" }} → {{ job.output_format|default:"—" }}{% if job.crs %} &nbsp; <strong>CRS:</strong> {{ job.crs }}{% endif %}</div>
             <div><strong>Files:</strong> uploaded {{ job.upload_files_count }} · output {{ job.output_files_count }}{% if job.download_url %} &nbsp; <strong>Download:</strong> <a href="{{ job.download_url }}">{{ job.download_url }}</a>{% endif %}</div>
             {% if job.error_message %}<div><strong>Error:</strong> {{ job.error_message }}</div>{% endif %}
+            {% if job.input_files.all %}
+              <div class="file-list">
+                {% for input_file in job.input_files.all %}
+                  <span class="file-chip" title="{{ input_file.original_name }}">
+                    {{ input_file.original_name }}
+                    <small>({{ input_file.size_bytes|filesizeformat }})</small>
+                  </span>
+                {% endfor %}
+              </div>
+            {% endif %}
           </div>
         </div>
       {% empty %}

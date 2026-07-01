@@ -5,6 +5,8 @@ import os
 
 from django.utils import timezone
 
+from .minio_storage import upload_to_minio_best_effort, get_minio_object_prefix
+
 from .models import (
     ConversionInputFile,
     ConversionJob,
@@ -170,6 +172,9 @@ def sync_conversion_job_completed(conversion_job, zip_path, output_files_count=0
                 size_bytes=zip_size,
                 checksum_sha256=zip_checksum,
             )
+
+        minio_object_name = f"{get_minio_object_prefix(conversion_job.task_id, 'output')}/{os.path.basename(zip_path)}"
+        upload_to_minio_best_effort(zip_path, object_name=minio_object_name)
 
         job.status = 'completed'
         job.progress_percent = 100

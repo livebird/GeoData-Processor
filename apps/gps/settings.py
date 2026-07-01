@@ -137,6 +137,15 @@ MAX_UPLOAD_SIZE = 5 * 1024 * 1024 * 1024  # 5 GB
 AV_SCAN_ENABLED = False
 UPLOAD_DAILY_QUOTA = 5 * 1024 * 1024 * 1024  # 5 GB
 
+# MinIO object storage defaults for local development
+MINIO_ENDPOINT = os.environ.get('MINIO_ENDPOINT', 'localhost:9000')
+MINIO_ACCESS_KEY = os.environ.get('MINIO_ACCESS_KEY', 'admin')
+MINIO_SECRET_KEY = os.environ.get('MINIO_SECRET_KEY', 'password123')
+MINIO_BUCKET = os.environ.get('MINIO_BUCKET', 'kavanmineshshah')
+MINIO_SECURE = os.environ.get('MINIO_SECURE', 'false').strip().lower() in {'1', 'true', 'yes', 'on'}
+MINIO_FORCE_PATH_STYLE = os.environ.get('MINIO_FORCE_PATH_STYLE', 'true').strip().lower() in {'1', 'true', 'yes', 'on'}
+MINIO_PUBLIC_BUCKET = os.environ.get('MINIO_PUBLIC_BUCKET', 'true').strip().lower() in {'1', 'true', 'yes', 'on'}
+
 # Celery Configuration with RabbitMQ
 CELERY_BROKER_URL = "amqp://guest:guest@127.0.0.1:5672//"
 CELERY_RESULT_BACKEND = 'rpc://'

@@ -46,6 +46,12 @@ from .operator_sync import (
     sync_conversion_job_failed,
     sync_conversion_job_started,
 )
+from .minio_storage import (
+    get_minio_bucket_name,
+    get_minio_object_prefix,
+    list_minio_objects,
+    upload_to_minio_best_effort,
+)
 from services.crs_policy import suggest_crs_by_extent, suggestions_to_dicts
 
 # ────────────────────────────────────────────────────────────────
@@ -2072,6 +2078,8 @@ def convert_files(request):
                 job.save(update_fields=["input_format", "output_format", "crs", "status"])
                 sync_conversion_job_started(job)
 
+            _upload_job_files_to_minio(task_id, [p for p in saved_paths if os.path.isfile(p)])
+
             gdal_server_url = getattr(settings, "GDAL_SERVER_URL", "").strip()
             callback_url = request.build_absolute_uri("/gdal_callback/") if gdal_server_url else ""
             worker = threading.Thread(
@@ -2635,7 +2643,7 @@ def admin_panel(request):
     if tab not in {"jobs", "logs"}:
         tab = "jobs"
 
-    jobs_qs = ConversionJob.objects.all()
+    jobs_qs = ConversionJob.objects.all().prefetch_related('input_files')
     logs_qs = SearchLog.objects.all()
 
     if q:
@@ -2667,7 +2675,19 @@ def admin_panel(request):
 
 def admin_job_detail(request, task_id):
     job = get_object_or_404(ConversionJob, task_id=task_id)
-    return render(request, "converter/admin_job_detail.html", {"job": job, "active_page": ""})
+    minio_prefix = get_minio_object_prefix(job.task_id)
+    minio_objects = list_minio_objects(prefix=minio_prefix)
+    return render(
+        request,
+        "converter/admin_job_detail.html",
+        {
+            "job": job,
+            "active_page": "",
+            "minio_bucket": get_minio_bucket_name(),
+            "minio_prefix": minio_prefix,
+            "minio_objects": minio_objects,
+        },
+    )
 
 
 def admin_job_edit(request, task_id):
@@ -2711,6 +2731,16 @@ def admin_job_delete(request, task_id):
 def admin_log_detail(request, log_id):
     log = get_object_or_404(SearchLog, id=log_id)
     return render(request, "converter/admin_log_detail.html", {"log": log, "active_page": ""})
+
+
+def _upload_job_files_to_minio(task_id, file_paths):
+    prefix = get_minio_object_prefix(task_id, 'input')
+    task_root = os.path.join(settings.MEDIA_ROOT, str(task_id))
+    for file_path in file_paths:
+        if os.path.isfile(file_path):
+            rel_name = os.path.relpath(file_path, task_root)
+            object_name = f"{prefix}/{rel_name.replace(os.sep, '/')}"
+            upload_to_minio_best_effort(file_path, object_name=object_name)
 
 
 def admin_log_edit(request, log_id):
