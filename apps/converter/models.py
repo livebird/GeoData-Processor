@@ -181,7 +181,7 @@ class GeoProcessingJobLog(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     job = models.ForeignKey(GeoProcessingJob, null=True, blank=True, on_delete=models.CASCADE, related_name='logs', db_column='job_id')
-    log_level = models.CharField(max_length=10)
+    log_level = models.CharField(max_length=10, choices=LOG_LEVEL_CHOICES, default='info')
     message = models.TextField()
     details = models.JSONField(default=dict)
     created_at = models.DateTimeField(auto_now_add=True, db_column='created_at', db_index=True)
@@ -200,6 +200,20 @@ class GeoProcessingJobLog(models.Model):
 
 class DispatchedLayer(models.Model):
     """Model for storing dispatched layers to target systems"""
+    STATUS_PENDING = "pending"
+    STATUS_DISPATCHED = "dispatched"
+    STATUS_CONFIRMED = "confirmed"
+    STATUS_SUCCESS = "success"
+    STATUS_FAILED = "failed"
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending"),
+        (STATUS_DISPATCHED, "Dispatched"),
+        (STATUS_CONFIRMED, "Confirmed"),
+        (STATUS_SUCCESS, "Success"),
+        (STATUS_FAILED, "Failed"),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     org_id = models.UUIDField(db_index=True, null=True, blank=True)
     job = models.ForeignKey(GeoProcessingJob, null=True, blank=True, on_delete=models.CASCADE, related_name='dispatches', db_column='job_id')
@@ -208,7 +222,7 @@ class DispatchedLayer(models.Model):
     target_endpoint = models.TextField(null=True, blank=True)
     target_database_fingerprint = models.CharField(max_length=64, null=True, blank=True)
     payload_metadata = models.JSONField(default=dict)
-    status = models.CharField(max_length=20)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
     dispatched_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

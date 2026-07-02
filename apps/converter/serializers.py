@@ -54,6 +54,8 @@ class DestinationCredentialSerializer(serializers.ModelSerializer):
 
 
 class AuditLogSerializer(serializers.ModelSerializer):
+    ip_address = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+
     class Meta:
         model = AuditLog
         fields = '__all__'

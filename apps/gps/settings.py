@@ -32,7 +32,14 @@ INSTALLED_APPS = [
     'django_celery_beat',
     'gdal_server',
 ]
-
+REST_FRAMEWORK = {
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'GeoData API',
+    'DESCRIPTION': 'API documentation',
+    'VERSION': '1.0.0',
+}
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',

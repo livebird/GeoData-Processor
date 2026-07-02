@@ -1,0 +1,7 @@
+openapi: 3.0.3
+info:
+  title: GeoData Processor API
+  version: 1.0.0
+  description: GDAL Processing Server API
+paths: {}
+components: {}
